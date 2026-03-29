@@ -431,18 +431,21 @@ const buildEmbedBootstrapScript = (assetScriptPath: string) => `<script type="mo
 })();
 </script>`;
 
-const isIosLikeUserAgent = (userAgent: string): boolean => {
-  const ua = userAgent || '';
-  return /iPad|iPhone|iPod/i.test(ua) || (/Macintosh/i.test(ua) && /Mobile/i.test(ua));
-};
-
 const shouldServeLiteEmbedApp = (req: express.Request): boolean => {
+  const forceFull = String(req.query?.full || '').toLowerCase();
+  if (forceFull === '1' || forceFull === 'true') {
+    return false;
+  }
+
   const forceLite = String(req.query?.lite || '').toLowerCase();
   if (forceLite === '1' || forceLite === 'true') {
     return true;
   }
 
-  return isIosLikeUserAgent(req.get('user-agent') || '');
+  // Serve the lightweight app by default for Notion embeds. iPadOS often presents
+  // a desktop-class user agent, which makes server-side iOS detection unreliable.
+  // An explicit `?full=1` override keeps the richer desktop bundle available.
+  return true;
 };
 
 const renderEmbeddedLiteApp = (res: express.Response) => {
