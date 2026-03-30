@@ -1494,6 +1494,51 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
         font-size: 12px;
       }
+      .icon-inline {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        flex: 0 0 auto;
+      }
+      .icon-shell {
+        width: 42px;
+        height: 42px;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+        box-shadow: 0 16px 30px rgba(194, 65, 12, 0.20);
+        flex: 0 0 auto;
+      }
+      .icon-shell svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .icon-shell.teal {
+        background: linear-gradient(135deg, var(--teal), #14b8a6);
+        box-shadow: 0 16px 30px rgba(17, 94, 89, 0.18);
+      }
+      .icon-shell.violet {
+        background: linear-gradient(135deg, var(--violet), #be185d);
+        box-shadow: 0 16px 30px rgba(124, 58, 237, 0.18);
+      }
+      .icon-shell.soft {
+        background: rgba(255,255,255,0.82);
+        color: var(--accent-strong);
+        box-shadow: none;
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
       .muted {
         color: var(--muted);
         font-size: 13px;
@@ -1551,6 +1596,45 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         display: grid;
         gap: 14px;
       }
+      .hero-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .quick-button {
+        width: auto;
+        padding: 11px 14px;
+        border-radius: 18px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255,255,255,0.82);
+        border: 1px solid rgba(120, 104, 82, 0.12);
+        box-shadow: 0 14px 28px rgba(55, 34, 18, 0.08);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+      .quick-button svg {
+        width: 16px;
+        height: 16px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .quick-button.primary {
+        background: linear-gradient(135deg, rgba(194, 65, 12, 0.92), rgba(251, 146, 60, 0.92));
+        color: #fff;
+        border-color: transparent;
+      }
+      .quick-button.teal {
+        color: var(--teal);
+      }
+      .quick-button.violet {
+        color: var(--violet);
+      }
       .eyebrow {
         display: inline-flex;
         align-items: center;
@@ -1596,10 +1680,28 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         gap: 12px;
       }
       .metric {
+        position: relative;
+        overflow: hidden;
         padding: 14px 16px;
         border-radius: 20px;
         background: rgba(255,255,255,0.76);
         border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .metric::after {
+        content: "";
+        position: absolute;
+        width: 88px;
+        height: 88px;
+        right: -32px;
+        bottom: -38px;
+        border-radius: 999px;
+        background: rgba(194, 65, 12, 0.06);
+      }
+      .metric-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
       }
       .metric-label {
         font-size: 11px;
@@ -1617,6 +1719,38 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         margin-top: 4px;
         color: var(--muted);
         font-size: 12px;
+      }
+      .micro-grid {
+        display: grid;
+        gap: 12px;
+      }
+      @media (min-width: 760px) {
+        .micro-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .micro-card {
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        display: grid;
+        gap: 10px;
+      }
+      .micro-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .micro-head strong {
+        display: block;
+        font-size: 13px;
+        line-height: 1.3;
+      }
+      .micro-copy {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
       }
       .view-stack {
         display: grid;
@@ -1722,6 +1856,15 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         color: #fff;
         background: linear-gradient(135deg, var(--accent), #fb923c);
         box-shadow: 0 16px 28px rgba(194, 65, 12, 0.20);
+      }
+      .launcher-icon svg {
+        width: 22px;
+        height: 22px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
       .launcher-card[data-launch="daily"] .launcher-icon {
         background: linear-gradient(135deg, var(--teal), #14b8a6);
@@ -1832,7 +1975,13 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
       }
       .back-link {
         width: auto;
-        padding: 0;
+        padding: 9px 12px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(120, 104, 82, 0.12);
         color: var(--accent-strong);
         font-size: 11px;
         font-weight: 800;
@@ -1888,6 +2037,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 10px;
         padding: 13px 16px;
         font-weight: 800;
         text-align: center;
@@ -1907,7 +2057,9 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
       .note {
         padding: 12px;
         border-radius: 16px;
-        background: rgba(255,255,255,0.7);
+        background:
+          radial-gradient(circle at top right, rgba(255,255,255,0.48), transparent 34%),
+          rgba(255,255,255,0.72);
         border: 1px solid rgba(120, 104, 82, 0.10);
         color: var(--muted);
         font-size: 13px;
@@ -2032,15 +2184,42 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         border: 1px solid rgba(120, 104, 82, 0.12);
         background: rgba(255,255,255,0.78);
       }
+      .toggle span {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .toggle span::before {
+        width: 18px;
+        height: 18px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        flex: 0 0 auto;
+      }
+      .toggle[data-kind="sync"] span::before {
+        content: "S";
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+      }
+      .toggle[data-kind="color"] span::before {
+        content: "+";
+        background: linear-gradient(135deg, var(--teal), #14b8a6);
+      }
+      .toggle[data-kind="force"] span::before {
+        content: "!";
+        background: linear-gradient(135deg, var(--violet), #be185d);
+      }
       .toggle input {
         width: 18px;
         height: 18px;
         margin: 0;
         accent-color: var(--accent);
-      }
-      .toggle span {
-        font-size: 12px;
-        font-weight: 700;
       }
       .empty {
         padding: 18px;
@@ -2075,6 +2254,16 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         font-weight: 800;
         background: var(--accent-soft);
         color: var(--accent-strong);
+        overflow: hidden;
+      }
+      .activity-index svg {
+        width: 12px;
+        height: 12px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.9;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
       .activity-copy {
         flex: 1;
@@ -2145,7 +2334,9 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         z-index: 5;
         padding: 14px;
         border-radius: 22px;
-        background: rgba(31, 26, 20, 0.90);
+        background:
+          radial-gradient(circle at top right, rgba(251, 146, 60, 0.22), transparent 28%),
+          linear-gradient(135deg, rgba(31, 26, 20, 0.94), rgba(51, 37, 26, 0.94));
         color: #fff;
         box-shadow: 0 20px 50px rgba(31, 26, 20, 0.22);
       }
@@ -2194,40 +2385,112 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           <section class="panel hero">
             <div class="hero-grid">
               <div class="hero-copy">
-                <span class="eyebrow">Notion Embed Launcher</span>
+                <span class="eyebrow">
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 3v4"></path>
+                    <path d="M12 17v4"></path>
+                    <path d="M4 12h4"></path>
+                    <path d="M16 12h4"></path>
+                    <path d="M6.5 6.5 9 9"></path>
+                    <path d="M15 15l2.5 2.5"></path>
+                    <path d="M17.5 6.5 15 9"></path>
+                    <path d="M9 15l-2.5 2.5"></path>
+                  </svg>
+                  Embed Launcher
+                </span>
                 <div>
-                  <h1>A focused tool deck for the painting workflow.</h1>
+                  <h1>Open the tool, not the admin shell.</h1>
                   <p class="muted" style="margin-top: 10px;">
-                    The embed stays lightweight and mobile-first: Workflow Manager is live, Daily Workflow Generator is staged, and Bad Defect Tracker has a reserved launch slot.
+                    Workflow-first, touch-safe, and tuned for Notion frames.
                   </p>
+                </div>
+                <div class="hero-actions">
+                  <button class="quick-button primary" data-launch="workflow" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M4 13h4l2-8 4 14 2-6h4"></path>
+                    </svg>
+                    <span>Workflow</span>
+                  </button>
+                  <button class="quick-button teal" data-launch="daily" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 3v4"></path>
+                      <path d="M17 3v4"></path>
+                      <path d="M4 9h16"></path>
+                      <path d="M5 6h14a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1Z"></path>
+                      <path d="M12 13h.01"></path>
+                    </svg>
+                    <span>Daily</span>
+                  </button>
+                  <button class="quick-button violet" data-launch="defects" type="button">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M9 9h6v6H9z"></path>
+                      <path d="M12 3v3"></path>
+                      <path d="M4.5 8.5 7 10"></path>
+                      <path d="M19.5 8.5 17 10"></path>
+                      <path d="M4 14h3"></path>
+                      <path d="M17 14h3"></path>
+                      <path d="M7 18 5.5 20"></path>
+                      <path d="M17 18l1.5 2"></path>
+                    </svg>
+                    <span>Defects</span>
+                  </button>
                 </div>
                 <div class="hero-notes">
                   <div class="hero-note">
-                    <span class="dot"></span>
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3 19 6v6c0 4.4-2.9 7-7 9-4.1-2-7-4.6-7-9V6l7-3Z"></path>
+                        <path d="m9.5 12 1.7 1.7 3.8-4"></path>
+                      </svg>
+                    </span>
                     <div>
-                      <strong>Launcher first, then focused tools</strong>
-                      <div class="muted">Open a single job at a time instead of dropping back into the heavy desktop shell.</div>
+                      <strong>Focused launch</strong>
+                      <div class="muted">One job at a time. No heavy admin chrome.</div>
                     </div>
                   </div>
                   <div class="hero-note">
-                    <span class="dot"></span>
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10 14 14 10"></path>
+                        <path d="m7.5 16.5-1 1a3 3 0 1 1-4-4l3-3a3 3 0 0 1 4 0l1 1"></path>
+                        <path d="m16.5 7.5 1-1a3 3 0 1 1 4 4l-3 3a3 3 0 0 1-4 0l-1-1"></path>
+                      </svg>
+                    </span>
                     <div>
-                      <strong>Embed-safe by default</strong>
-                      <div class="muted">The current tokenized share flow, standard file picker, and manual workbook download stay right where Notion already tolerates them.</div>
+                      <strong>Safe path</strong>
+                      <div class="muted">Same token flow, picker, and manual download.</div>
                     </div>
                   </div>
                 </div>
               </div>
               <div class="metrics">
                 <div class="metric">
-                  <div class="metric-label">Current status</div>
+                  <div class="metric-head">
+                    <div class="metric-label">Status</div>
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v7l4 2"></path>
+                        <circle cx="12" cy="12" r="8"></circle>
+                      </svg>
+                    </span>
+                  </div>
                   <div class="metric-value" data-status-text>Connecting...</div>
-                  <div class="metric-sub">The launcher loads live calendar pages without leaving the lightweight embed route.</div>
+                  <div class="metric-sub">Live embed session</div>
                 </div>
                 <div class="metric">
-                  <div class="metric-label">Tool mix</div>
+                  <div class="metric-head">
+                    <div class="metric-label">Mix</div>
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="4" y="4" width="6" height="6" rx="1"></rect>
+                        <rect x="14" y="4" width="6" height="6" rx="1"></rect>
+                        <rect x="4" y="14" width="6" height="6" rx="1"></rect>
+                        <rect x="14" y="14" width="6" height="6" rx="1"></rect>
+                      </svg>
+                    </span>
+                  </div>
                   <div class="metric-value">1 live / 1 staged / 1 coming soon</div>
-                  <div class="metric-sub"><span data-calendar-count>0</span> upcoming calendar pages are ready for the live workflow.</div>
+                  <div class="metric-sub"><span data-calendar-count>0</span> pages loaded</div>
                 </div>
               </div>
             </div>
@@ -2237,64 +2500,105 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             <button class="panel launcher-card featured" data-launch="workflow" type="button">
               <div class="launcher-card-head">
                 <span class="launcher-chip">Live now</span>
-                <span class="launcher-icon">WM</span>
+                <span class="launcher-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 13h4l2-8 4 14 2-6h4"></path>
+                  </svg>
+                </span>
               </div>
               <div>
-                <h2>Workflow Manager</h2>
-                <p>Upload a workbook, choose the right calendar page, review paint groups, and sync with the current Notion-safe flow.</p>
+                <h2>Workflow</h2>
+                <p>Upload, review, sync.</p>
               </div>
-              <span class="launcher-route">Open workflow</span>
+              <span class="launcher-route">Open</span>
             </button>
 
             <button class="panel launcher-card" data-launch="daily" type="button">
               <div class="launcher-card-head">
                 <span class="launcher-chip success">Preview lane</span>
-                <span class="launcher-icon">DG</span>
+                <span class="launcher-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 3v4"></path>
+                    <path d="M17 3v4"></path>
+                    <path d="M4 9h16"></path>
+                    <path d="M5 6h14a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1Z"></path>
+                    <path d="M12 13h.01"></path>
+                  </svg>
+                </span>
               </div>
               <div>
-                <h2>Daily Workflow Generator</h2>
-                <p>See the staged automation lane without reintroducing the heavy shell. Live dates can surface here while the action stays intentionally limited.</p>
+                <h2>Daily</h2>
+                <p>Live dates, staged action.</p>
               </div>
-              <span class="launcher-route success">Open preview</span>
+              <span class="launcher-route success">Preview</span>
             </button>
 
             <button class="panel launcher-card muted-card" data-launch="defects" type="button">
               <div class="launcher-card-head">
                 <span class="launcher-chip rose">Coming soon</span>
-                <span class="launcher-icon">BD</span>
+                <span class="launcher-icon">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 9h6v6H9z"></path>
+                    <path d="M12 3v3"></path>
+                    <path d="M4.5 8.5 7 10"></path>
+                    <path d="M19.5 8.5 17 10"></path>
+                    <path d="M4 14h3"></path>
+                    <path d="M17 14h3"></path>
+                    <path d="M7 18 5.5 20"></path>
+                    <path d="M17 18l1.5 2"></path>
+                  </svg>
+                </span>
               </div>
               <div>
-                <h2>Bad Defect Tracker</h2>
-                <p>Keep the next tool visible in the launcher now, with a dedicated destination ready for defect logging once the underlying flow is implemented.</p>
+                <h2>Defects</h2>
+                <p>Reserved slot for the next tool.</p>
               </div>
-              <span class="launcher-route rose">View roadmap</span>
+              <span class="launcher-route rose">Soon</span>
             </button>
           </section>
 
           <section class="grid two">
             <section class="panel card">
-              <h2>Why this stays safe in Notion</h2>
-              <div class="activity">
-                <div class="activity-item">
-                  <span class="activity-index">1</span>
-                  <div class="activity-copy">
-                    <h3>Dedicated share route</h3>
-                    <p class="muted">The launcher lives inside the current lightweight embed path instead of pulling the full React admin shell back into the frame.</p>
+              <h2>Embed Fit</h2>
+              <div class="micro-grid">
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <rect x="4" y="6" width="16" height="12" rx="2"></rect>
+                        <path d="M8 10h8"></path>
+                        <path d="M8 14h5"></path>
+                      </svg>
+                    </span>
+                    <strong>Share view</strong>
                   </div>
+                  <div class="micro-copy">Still lightweight.</div>
                 </div>
-                <div class="activity-item">
-                  <span class="activity-index">2</span>
-                  <div class="activity-copy">
-                    <h3>Public token flow stays intact</h3>
-                    <p class="muted">No login wall, no redirect, and no extra navigation layer in front of the working tokenized embed session.</p>
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10 14 14 10"></path>
+                        <path d="m7.5 16.5-1 1a3 3 0 1 1-4-4l3-3a3 3 0 0 1 4 0l1 1"></path>
+                        <path d="m16.5 7.5 1-1a3 3 0 1 1 4 4l-3 3a3 3 0 0 1-4 0l-1-1"></path>
+                      </svg>
+                    </span>
+                    <strong>Token flow</strong>
                   </div>
+                  <div class="micro-copy">No redirects added.</div>
                 </div>
-                <div class="activity-item">
-                  <span class="activity-index">3</span>
-                  <div class="activity-copy">
-                    <h3>Mobile-safe finish</h3>
-                    <p class="muted">Workflow Manager still ends with a direct workbook download, which remains friendlier to Notion and iPad webviews than direct file-system writes.</p>
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v11"></path>
+                        <path d="m8 12 4 4 4-4"></path>
+                        <path d="M4 19h16"></path>
+                      </svg>
+                    </span>
+                    <strong>Manual finish</strong>
                   </div>
+                  <div class="micro-copy">Safer on iPad.</div>
                 </div>
               </div>
             </section>
@@ -2316,10 +2620,16 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           <section class="panel view-header">
             <div class="view-top">
               <div>
-                <button class="back-link" data-back-home type="button">Back to launcher</button>
-                <h1 class="view-title">Workflow Manager</h1>
+                <button class="back-link" data-back-home type="button">
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 12H5"></path>
+                    <path d="m11 6-6 6 6 6"></path>
+                  </svg>
+                  Home
+                </button>
+                <h1 class="view-title">Workflow</h1>
                 <p class="muted" style="margin-top: 10px;">
-                  The live workflow keeps the current lightweight upload, review, sync, and manual-download flow intact.
+                  Live tool. Same safe flow.
                 </p>
               </div>
               <div class="view-badges">
@@ -2328,7 +2638,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
               </div>
             </div>
             <div class="note">
-              Compatibility mode stays on for the embed: standard file picker, bearer-token calls through <code>/embed-api/*</code>, and a processed workbook download after sync.
+              Standard picker, <code>/embed-api/*</code>, manual file handoff.
               Current status: <strong data-status-text>Connecting...</strong>
             </div>
           </section>
@@ -2339,14 +2649,14 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span class="step">1</span>
                   <div>
-                    <h2 style="margin:0;">Choose the target page</h2>
-                    <p class="muted">Pick the calendar page that should receive the synced workload.</p>
+                    <h2 style="margin:0;">Page</h2>
+                    <p class="muted">Pick the target.</p>
                   </div>
                 </div>
                 <span class="tag">Live Notion</span>
               </div>
               <div class="control">
-                <label for="calendar-select">Target page</label>
+                <label for="calendar-select">Page</label>
                 <select id="calendar-select">
                   <option value="">Loading pages...</option>
                 </select>
@@ -2358,16 +2668,16 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span class="step">2</span>
                   <div>
-                    <h2 style="margin:0;">Upload the workbook</h2>
-                    <p class="muted">Use the standard file picker so the flow remains reliable inside Notion and on iPad.</p>
+                    <h2 style="margin:0;">Workbook</h2>
+                    <p class="muted">Upload from device.</p>
                   </div>
                 </div>
                 <span class="tag success">Mobile-safe</span>
               </div>
               <div class="control">
-                <label for="file-input">Excel workbook</label>
+                <label for="file-input">File</label>
                 <input id="file-input" type="file" accept=".xlsx,.xls" />
-                <div class="note" id="file-name">No workbook uploaded yet.</div>
+                <div class="note" id="file-name">No file yet.</div>
               </div>
             </section>
 
@@ -2376,31 +2686,49 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
                 <div style="display:flex;align-items:center;gap:10px;">
                   <span class="step">3</span>
                   <div>
-                    <h2 style="margin:0;">Sync summary</h2>
-                    <p class="muted">The review state updates as soon as a page and workbook are selected.</p>
+                    <h2 style="margin:0;">Ready</h2>
+                    <p class="muted">Live summary.</p>
                   </div>
                 </div>
                 <span class="tag rose">Review first</span>
               </div>
               <div class="activity">
                 <div class="activity-item">
-                  <span class="activity-index">P</span>
+                  <span class="activity-index">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M7 3v4"></path>
+                      <path d="M17 3v4"></path>
+                      <path d="M4 9h16"></path>
+                      <path d="M5 6h14a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1Z"></path>
+                    </svg>
+                  </span>
                   <div class="activity-copy">
-                    <div class="activity-title">Target page</div>
+                    <div class="activity-title">Page</div>
                     <div id="workflow-target" class="muted">None selected.</div>
                   </div>
                 </div>
                 <div class="activity-item">
-                  <span class="activity-index">F</span>
+                  <span class="activity-index">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"></path>
+                      <path d="M14 3v5h5"></path>
+                      <path d="M9 13h6"></path>
+                    </svg>
+                  </span>
                   <div class="activity-copy">
-                    <div class="activity-title">Workbook</div>
+                    <div class="activity-title">File</div>
                     <div id="workflow-file" class="muted">No workbook uploaded.</div>
                   </div>
                 </div>
                 <div class="activity-item">
-                  <span class="activity-index">S</span>
+                  <span class="activity-index">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                      <circle cx="12" cy="12" r="8"></circle>
+                      <path d="m9.5 12 1.7 1.7 3.8-4"></path>
+                    </svg>
+                  </span>
                   <div class="activity-copy">
-                    <div class="activity-title">Selected items</div>
+                    <div class="activity-title">Selection</div>
                     <div id="workflow-count" class="muted">0 ready to sync.</div>
                   </div>
                 </div>
@@ -2413,12 +2741,12 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
               <div style="display:flex;align-items:center;gap:10px;">
                 <span class="step">4</span>
                 <div>
-                  <h2 style="margin:0;">Review the paint groups</h2>
-                  <p class="muted">This focused view groups work by color so the embedded version stays scannable in tight frames.</p>
+                  <h2 style="margin:0;">Review</h2>
+                  <p class="muted">Grouped by color.</p>
                 </div>
               </div>
               <div class="card-actions">
-                <button id="select-all-products" class="mini-button" type="button">Select all</button>
+                <button id="select-all-products" class="mini-button" type="button">All</button>
                 <span class="tag rose">Review before sync</span>
               </div>
             </div>
@@ -2428,28 +2756,44 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
 
           <section class="grid two">
             <section class="panel card">
-              <h2>Why Workflow Manager stays stable here</h2>
-              <div class="activity">
-                <div class="activity-item">
-                  <span class="activity-index">1</span>
-                  <div class="activity-copy">
-                    <h3>One focused job</h3>
-                    <p class="muted">The launcher hands off into a single workflow instead of loading admin chrome, sidebars, and extra routes inside the embed.</p>
+              <h2>Embed Fit</h2>
+              <div class="micro-grid">
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 13h4l2-8 4 14 2-6h4"></path>
+                      </svg>
+                    </span>
+                    <strong>Focused</strong>
                   </div>
+                  <div class="micro-copy">No shell bounce.</div>
                 </div>
-                <div class="activity-item">
-                  <span class="activity-index">2</span>
-                  <div class="activity-copy">
-                    <h3>Existing API path preserved</h3>
-                    <p class="muted">All live actions still go through the same bearer-protected <code>/embed-api/*</code> endpoints already working in production.</p>
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M10 14 14 10"></path>
+                        <path d="m7.5 16.5-1 1a3 3 0 1 1-4-4l3-3a3 3 0 0 1 4 0l1 1"></path>
+                        <path d="m16.5 7.5 1-1a3 3 0 1 1 4 4l-3 3a3 3 0 0 1-4 0l-1-1"></path>
+                      </svg>
+                    </span>
+                    <strong>Same API</strong>
                   </div>
+                  <div class="micro-copy">Bearer flow stays.</div>
                 </div>
-                <div class="activity-item">
-                  <span class="activity-index">3</span>
-                  <div class="activity-copy">
-                    <h3>Download instead of direct write-back</h3>
-                    <p class="muted">The embedded route keeps the manual workbook handoff that behaves more predictably than native file APIs in Notion and on iPad.</p>
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 5v11"></path>
+                        <path d="m8 12 4 4 4-4"></path>
+                        <path d="M4 19h16"></path>
+                      </svg>
+                    </span>
+                    <strong>Manual file</strong>
                   </div>
+                  <div class="micro-copy">Webview-friendly.</div>
                 </div>
               </div>
             </section>
@@ -2469,12 +2813,24 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           <section class="dock">
             <div class="dock-row">
               <div>
-                <div class="dock-title">Ready to sync when both a page and workbook are selected.</div>
-                <div class="dock-copy" id="download-copy">After the sync completes, the processed workbook appears as a direct download action here.</div>
+                <div class="dock-title">Sync when ready.</div>
+                <div class="dock-copy" id="download-copy">Processed file appears here.</div>
               </div>
               <div class="dock-actions">
-                <button id="sync-button" class="block-button primary" type="button" disabled>Sync to Notion</button>
-                <a id="download-link" class="button secondary hidden" href="#" download>Open processed workbook</a>
+                <button id="sync-button" class="block-button primary" type="button" disabled>
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 13h4l2-8 4 14 2-6h4"></path>
+                  </svg>
+                  <span>Sync</span>
+                </button>
+                <a id="download-link" class="button secondary hidden" href="#" download>
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M12 5v11"></path>
+                    <path d="m8 12 4 4 4-4"></path>
+                    <path d="M4 19h16"></path>
+                  </svg>
+                  <span>Open file</span>
+                </a>
               </div>
             </div>
           </section>
@@ -2484,10 +2840,16 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           <section class="panel view-header">
             <div class="view-top">
               <div>
-                <button class="back-link" data-back-home type="button">Back to launcher</button>
-                <h1 class="view-title">Daily Workflow Generator</h1>
+                <button class="back-link" data-back-home type="button">
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 12H5"></path>
+                    <path d="m11 6-6 6 6 6"></path>
+                  </svg>
+                  Home
+                </button>
+                <h1 class="view-title">Daily</h1>
                 <p class="muted" style="margin-top: 10px;">
-                  This stays in a staged preview inside the embed so we do not regress back to the heavy desktop shell.
+                  Live dates. Staged action.
                 </p>
               </div>
               <div class="view-badges">
@@ -2501,8 +2863,8 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             <section class="panel card">
               <div class="card-head">
                 <div>
-                  <h2>Live calendar preview</h2>
-                  <p class="muted">This lane can already surface the upcoming calendar pages available to the current embed session.</p>
+                  <h2>Dates</h2>
+                  <p class="muted">Live schedule feed.</p>
                 </div>
                 <span class="tag">Live dates</span>
               </div>
@@ -2512,17 +2874,22 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             <section class="panel card">
               <div class="card-head">
                 <div>
-                  <h2>Automation status</h2>
-                  <p class="muted">The generator action is intentionally staged for now.</p>
+                  <h2>Status</h2>
+                  <p class="muted">Preview only.</p>
                 </div>
                 <span class="tag rose">Coming next</span>
               </div>
               <div class="note">
-                The embed can already surface live schedule context, but the automated generation endpoint is not wired into this lightweight route yet. Keeping it in preview avoids breaking the stable Notion and iPad experience.
+                Calendar is live. Generation is not wired here yet.
               </div>
               <div class="control" style="margin-top: 14px;">
-                <button class="block-button primary" data-launch="workflow" type="button">Open Workflow Manager</button>
-                <button class="block-button secondary" type="button" disabled>Generator action coming soon</button>
+                <button class="block-button primary" data-launch="workflow" type="button">
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 13h4l2-8 4 14 2-6h4"></path>
+                  </svg>
+                  <span>Workflow</span>
+                </button>
+                <button class="block-button secondary" type="button" disabled>Soon</button>
               </div>
             </section>
           </section>
@@ -2530,23 +2897,23 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           <section class="panel card">
             <div class="card-head">
               <div>
-                <h2>Planned embed-safe path</h2>
-                <p class="muted">The next step is to wire automation without leaving the lightweight share route.</p>
+                <h2>Plan</h2>
+                <p class="muted">Next safe steps.</p>
               </div>
               <span class="tag success">Staged design</span>
             </div>
             <div class="placeholder-steps">
               <div class="placeholder-step">
-                <strong>1. Pick the target day</strong>
-                <div class="muted">Use the same live calendar context already loaded for Workflow Manager.</div>
+                <strong>Pick</strong>
+                <div class="muted">Use the live page list.</div>
               </div>
               <div class="placeholder-step">
-                <strong>2. Prepare the source workbook</strong>
-                <div class="muted">Keep upload and processing inside the current mobile-safe file picker flow.</div>
+                <strong>Prepare</strong>
+                <div class="muted">Keep the same upload flow.</div>
               </div>
               <div class="placeholder-step">
-                <strong>3. Generate without extra chrome</strong>
-                <div class="muted">Ship automation only when it can live in this focused embed view instead of the desktop admin shell.</div>
+                <strong>Generate</strong>
+                <div class="muted">Stay inside the embed view.</div>
               </div>
             </div>
           </section>
@@ -2556,10 +2923,16 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           <section class="panel view-header">
             <div class="view-top">
               <div>
-                <button class="back-link" data-back-home type="button">Back to launcher</button>
-                <h1 class="view-title">Bad Defect Tracker</h1>
+                <button class="back-link" data-back-home type="button">
+                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M19 12H5"></path>
+                    <path d="m11 6-6 6 6 6"></path>
+                  </svg>
+                  Home
+                </button>
+                <h1 class="view-title">Defects</h1>
                 <p class="muted" style="margin-top: 10px;">
-                  This slot is now visible in the launcher, but the working defect flow is still intentionally held back until the data model and endpoints are ready.
+                  Visible now. Reserved for later.
                 </p>
               </div>
               <div class="view-badges">
@@ -2570,50 +2943,64 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
 
           <section class="panel card placeholder-board">
             <div class="placeholder-art">BD</div>
-            <h2>Reserved launch slot for the next tool</h2>
+            <h2>Next tool slot</h2>
             <p class="muted" style="max-width: 560px; margin: 12px auto 0;">
-              The launcher now has a stable destination for defect tracking without pretending the workflow is live. That keeps the embed intentional today and gives this tool a clear place to land later.
+              Kept visible without pretending it is live.
             </p>
             <div class="control" style="max-width: 360px; margin: 18px auto 0;">
-              <button class="block-button primary" data-launch="workflow" type="button">Open Workflow Manager</button>
+              <button class="block-button primary" data-launch="workflow" type="button">
+                <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 13h4l2-8 4 14 2-6h4"></path>
+                </svg>
+                <span>Workflow</span>
+              </button>
             </div>
           </section>
 
           <section class="grid two">
             <section class="panel card">
-              <h2>Expected phases</h2>
+              <h2>Phases</h2>
               <div class="placeholder-steps">
                 <div class="placeholder-step">
                   <strong>Capture</strong>
-                  <div class="muted">Log defect details, source line, and affected part without forcing a desktop-style admin layout into the embed.</div>
+                  <div class="muted">Log the issue.</div>
                 </div>
                 <div class="placeholder-step">
                   <strong>Triage</strong>
-                  <div class="muted">Route the issue to the right owner and surface its status in a compact, scan-friendly mobile frame.</div>
+                  <div class="muted">Route the owner.</div>
                 </div>
                 <div class="placeholder-step">
                   <strong>Resolve</strong>
-                  <div class="muted">Close the loop back into Notion only after the embed flow is proven stable.</div>
+                  <div class="muted">Close back in Notion.</div>
                 </div>
               </div>
             </section>
 
             <section class="panel card">
-              <h2>Why it stays placeholder today</h2>
-              <div class="activity">
-                <div class="activity-item">
-                  <span class="activity-index">1</span>
-                  <div class="activity-copy">
-                    <h3>Compatibility first</h3>
-                    <p class="muted">Shipping a placeholder is safer than bolting on another heavy route that could disturb the working Notion embed.</p>
+              <h2>Why placeholder</h2>
+              <div class="micro-grid" style="grid-template-columns:1fr;">
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M12 3 19 6v6c0 4.4-2.9 7-7 9-4.1-2-7-4.6-7-9V6l7-3Z"></path>
+                      </svg>
+                    </span>
+                    <strong>Compatibility first</strong>
                   </div>
+                  <div class="micro-copy">Safer than shipping another heavy route.</div>
                 </div>
-                <div class="activity-item">
-                  <span class="activity-index">2</span>
-                  <div class="activity-copy">
-                    <h3>Clear ownership</h3>
-                    <p class="muted">The launcher makes the future tool visible now without confusing users about what is already production-ready.</p>
+                <div class="micro-card">
+                  <div class="micro-head">
+                    <span class="icon-shell soft">
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M4 12h16"></path>
+                        <path d="M12 4v16"></path>
+                      </svg>
+                    </span>
+                    <strong>Clear roadmap</strong>
                   </div>
+                  <div class="micro-copy">Visible now, functional later.</div>
                 </div>
               </div>
             </section>
@@ -2753,15 +3140,15 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           workflowTargetEl.textContent = selectedPage
             ? (selectedPage.title || 'Untitled page') + ' (' + (selectedPage.date || '') + ')'
             : 'None selected.';
-          workflowFileEl.textContent = state.selectedFile || 'No workbook uploaded.';
+          workflowFileEl.textContent = state.selectedFile || 'No file.';
           workflowCountEl.textContent = state.products.filter(function (product) {
             return product.selected;
-          }).length + ' ready to sync.';
+          }).length + ' selected.';
         };
 
         const updateBulkSelectLabel = function () {
           if (!state.products.length) {
-            bulkSelectEl.textContent = 'Select all';
+            bulkSelectEl.textContent = 'All';
             bulkSelectEl.disabled = true;
             return;
           }
@@ -2769,7 +3156,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           bulkSelectEl.disabled = false;
           bulkSelectEl.textContent = state.products.every(function (product) {
             return product.selected;
-          }) ? 'Clear selection' : 'Select all';
+          }) ? 'Clear' : 'All';
         };
 
         const apiFetch = async function (path, init) {
@@ -2785,7 +3172,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           }
           downloadLinkEl.className = 'button secondary hidden';
           downloadLinkEl.removeAttribute('href');
-          downloadCopyEl.textContent = 'After the sync completes, the processed workbook appears as a direct download action here.';
+          downloadCopyEl.textContent = 'Processed file appears here.';
         };
 
         const createDownload = function (base64, filename) {
@@ -2802,9 +3189,15 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           downloadLinkEl.href = state.downloadUrl;
           downloadLinkEl.download = filename;
           downloadLinkEl.className = 'button primary';
-          downloadLinkEl.textContent = 'Open processed workbook';
+          downloadLinkEl.innerHTML =
+            '<svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">' +
+              '<path d="M12 5v11"></path>' +
+              '<path d="m8 12 4 4 4-4"></path>' +
+              '<path d="M4 19h16"></path>' +
+            '</svg>' +
+            '<span>Open file</span>';
           downloadLinkEl.classList.remove('hidden');
-          downloadCopyEl.textContent = filename + ' is ready to open after sync.';
+          downloadCopyEl.textContent = filename + ' is ready.';
         };
 
         const renderDailyPages = function () {
@@ -2833,7 +3226,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             productsEmptyEl.classList.remove('hidden');
             productsEmptyEl.textContent = state.selectedFile
               ? 'No products were found in the uploaded workbook.'
-              : 'Upload a workbook to load products and choose what should sync.';
+              : 'Upload a workbook to begin.';
             updateBulkSelectLabel();
             updateWorkflowSummary();
             updateSyncButton();
@@ -2876,9 +3269,9 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
                     '</div>' +
                   '</div>' +
                   '<div class="product-controls">' +
-                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="selected"' + (product.selected ? ' checked' : '') + ' /><span>Sync this item</span></label>' +
-                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="colorAccent"' + (product.colorAccent ? ' checked' : '') + ' /><span>Append color to part</span></label>' +
-                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="override"' + (product.override ? ' checked' : '') + ' /><span>Override existing data</span></label>' +
+                    '<label class="toggle" data-kind="sync"><input type="checkbox" data-index="' + item.index + '" data-key="selected"' + (product.selected ? ' checked' : '') + ' /><span>Sync</span></label>' +
+                    '<label class="toggle" data-kind="color"><input type="checkbox" data-index="' + item.index + '" data-key="colorAccent"' + (product.colorAccent ? ' checked' : '') + ' /><span>Color</span></label>' +
+                    '<label class="toggle" data-kind="force"><input type="checkbox" data-index="' + item.index + '" data-key="override"' + (product.override ? ' checked' : '') + ' /><span>Force</span></label>' +
                   '</div>' +
                 '</article>';
             }).join('');
@@ -2951,7 +3344,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           state.calendarLoaded = true;
           state.calendarPages = data;
           calendarSelectEl.innerHTML =
-            '<option value="">Choose a calendar page...</option>' +
+            '<option value="">Pick a page...</option>' +
             data.map(function (page) {
               const title = (page.title || 'Untitled') + ' (' + (page.date || '') + ')';
               return '<option value="' + escapeHtml(page.id) + '">' + escapeHtml(title) + '</option>';
@@ -3012,7 +3405,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
 
             state.selectedFile = data.filename;
             state.products = [];
-            fileNameEl.textContent = 'Uploaded workbook: ' + data.filename;
+            fileNameEl.textContent = data.filename;
             renderProducts();
             updateSyncButton();
             addActivity('Workbook uploaded: ' + data.filename + '.', 'success');
