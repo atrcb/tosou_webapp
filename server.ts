@@ -485,7 +485,7 @@ const shouldServeLiteEmbedApp = (req: express.Request): boolean => {
   return true;
 };
 
-const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
+const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response) => {
   const bootstrapState = buildEmbedBootstrapState(req);
   res.setHeader('Cache-Control', 'no-store');
   return res.type('html').send(`<!doctype html>
@@ -1404,6 +1404,1695 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             setError(error && error.message ? error.message : error);
           }
         });
+
+        window.addEventListener('beforeunload', revokeDownload);
+        initialize();
+      })();
+    </script>
+  </body>
+</html>`);
+};
+
+const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
+  const forceLegacy = String(req.query?.legacy || '').toLowerCase();
+  if (forceLegacy === '1' || forceLegacy === 'true') {
+    return renderEmbeddedLegacyLiteApp(req, res);
+  }
+
+  const bootstrapState = buildEmbedBootstrapState(req);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.type('html').send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painting Team Launcher</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: "Avenir Next", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        --bg: #f4eee5;
+        --panel: rgba(255, 252, 247, 0.94);
+        --line: rgba(120, 104, 82, 0.16);
+        --ink: #1f1a14;
+        --muted: #6f6357;
+        --accent: #c2410c;
+        --accent-strong: #9a3412;
+        --accent-soft: #ffedd5;
+        --teal: #115e59;
+        --teal-soft: #ccfbf1;
+        --rose: #be185d;
+        --rose-soft: #fce7f3;
+        --violet: #7c3aed;
+        --violet-soft: #f3e8ff;
+        --shadow: 0 20px 50px rgba(55, 34, 18, 0.08);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(194, 65, 12, 0.10), transparent 26%),
+          radial-gradient(circle at top right, rgba(17, 94, 89, 0.10), transparent 24%),
+          linear-gradient(180deg, #faf6ef 0%, var(--bg) 100%);
+        color: var(--ink);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.28) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px);
+        background-size: 24px 24px;
+        mask-image: linear-gradient(180deg, rgba(0,0,0,0.45), transparent 82%);
+      }
+      h1, h2, h3, p { margin: 0; }
+      h1 {
+        font-size: clamp(24px, 5vw, 34px);
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+      }
+      h2 {
+        font-size: 15px;
+        font-weight: 800;
+        margin-bottom: 12px;
+      }
+      h3 {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      code {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.76);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .shell {
+        position: relative;
+        max-width: 1024px;
+        margin: 0 auto;
+        padding: 18px;
+      }
+      .stack {
+        display: grid;
+        gap: 16px;
+      }
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
+      }
+      .hero {
+        overflow: hidden;
+        position: relative;
+        padding: 20px;
+        background:
+          radial-gradient(circle at 15% 20%, rgba(194, 65, 12, 0.16), transparent 24%),
+          radial-gradient(circle at 85% 15%, rgba(17, 94, 89, 0.14), transparent 18%),
+          linear-gradient(135deg, rgba(255, 246, 236, 0.98), rgba(255, 251, 247, 0.92));
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        right: -70px;
+        bottom: -110px;
+        border-radius: 50%;
+        background: rgba(194, 65, 12, 0.08);
+      }
+      .hero-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 18px;
+      }
+      @media (min-width: 860px) {
+        .hero-grid {
+          grid-template-columns: 1.25fr 0.9fr;
+          align-items: end;
+        }
+      }
+      .hero-copy {
+        display: grid;
+        gap: 14px;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(120, 104, 82, 0.12);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+      .hero-notes {
+        display: grid;
+        gap: 10px;
+      }
+      .hero-note {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .hero-note strong {
+        display: block;
+        margin-bottom: 2px;
+        font-size: 12px;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        margin-top: 5px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+        flex: 0 0 auto;
+      }
+      .metrics {
+        display: grid;
+        gap: 12px;
+      }
+      .metric {
+        padding: 14px 16px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.76);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .metric-label {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .metric-value {
+        margin-top: 6px;
+        font-size: 18px;
+        font-weight: 800;
+      }
+      .metric-sub {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .view-stack {
+        display: grid;
+        gap: 16px;
+      }
+      .launcher-grid {
+        display: grid;
+        gap: 16px;
+      }
+      @media (min-width: 760px) {
+        .launcher-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .grid {
+        display: grid;
+        gap: 16px;
+      }
+      @media (min-width: 760px) {
+        .grid.two {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      button {
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+        box-shadow: none;
+      }
+      .launcher-card {
+        width: 100%;
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        text-align: left;
+        border-radius: 24px;
+        border: 1px solid rgba(120, 104, 82, 0.12);
+        background:
+          radial-gradient(circle at top right, rgba(255,255,255,0.62), transparent 34%),
+          linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,252,247,0.94));
+        box-shadow: var(--shadow);
+        transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      }
+      .launcher-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(194, 65, 12, 0.26);
+        box-shadow: 0 24px 54px rgba(55, 34, 18, 0.12);
+      }
+      .launcher-card.featured {
+        background:
+          radial-gradient(circle at top right, rgba(255,255,255,0.66), transparent 30%),
+          linear-gradient(135deg, rgba(255, 241, 230, 0.98), rgba(255, 249, 242, 0.96));
+        border-color: rgba(194, 65, 12, 0.22);
+      }
+      .launcher-card.muted-card {
+        background:
+          radial-gradient(circle at top right, rgba(255,255,255,0.58), transparent 32%),
+          linear-gradient(180deg, rgba(247, 243, 238, 0.96), rgba(255, 252, 247, 0.94));
+      }
+      .launcher-card-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .launcher-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        background: rgba(255,255,255,0.82);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        color: var(--accent-strong);
+      }
+      .launcher-chip.success {
+        color: var(--teal);
+      }
+      .launcher-chip.rose {
+        color: var(--rose);
+      }
+      .launcher-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        font-size: 18px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+        box-shadow: 0 16px 28px rgba(194, 65, 12, 0.20);
+      }
+      .launcher-card[data-launch="daily"] .launcher-icon {
+        background: linear-gradient(135deg, var(--teal), #14b8a6);
+        box-shadow: 0 16px 28px rgba(17, 94, 89, 0.18);
+      }
+      .launcher-card[data-launch="defects"] .launcher-icon {
+        background: linear-gradient(135deg, var(--violet), #be185d);
+        box-shadow: 0 16px 28px rgba(124, 58, 237, 0.18);
+      }
+      .launcher-card p {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+      .launcher-route {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--accent-strong);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      .launcher-route.success {
+        color: var(--teal);
+      }
+      .launcher-route.rose {
+        color: var(--rose);
+      }
+      .launcher-route::after {
+        content: ">";
+      }
+      .card {
+        padding: 18px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .card-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .step {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        color: white;
+        background: linear-gradient(135deg, var(--accent), #ea580c);
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+      }
+      .tag.success {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+      .tag.rose {
+        background: var(--rose-soft);
+        color: var(--rose);
+      }
+      .tag.violet {
+        background: var(--violet-soft);
+        color: var(--violet);
+      }
+      .mini-button {
+        width: auto;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.80);
+        border: 1px solid rgba(120, 104, 82, 0.16);
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--ink);
+      }
+      .view-header {
+        padding: 20px;
+        background:
+          radial-gradient(circle at top right, rgba(194, 65, 12, 0.12), transparent 28%),
+          linear-gradient(135deg, rgba(255, 248, 240, 0.98), rgba(255, 252, 247, 0.96));
+      }
+      .view-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .back-link {
+        width: auto;
+        padding: 0;
+        color: var(--accent-strong);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+      }
+      .view-title {
+        margin-top: 12px;
+        font-size: clamp(26px, 5vw, 34px);
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+      }
+      .view-badges {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .workflow-grid {
+        display: grid;
+        gap: 16px;
+      }
+      @media (min-width: 920px) {
+        .workflow-grid {
+          grid-template-columns: 1fr 1fr 0.92fr;
+        }
+      }
+      .control {
+        display: grid;
+        gap: 8px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        font-weight: 800;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      select, input[type="file"], .block-button, a.button {
+        width: 100%;
+        border-radius: 16px;
+        border: 1px solid rgba(120, 104, 82, 0.16);
+        background: rgba(255,255,255,0.86);
+        color: var(--ink);
+        font: inherit;
+      }
+      select, input[type="file"] {
+        padding: 12px 14px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      }
+      .block-button, a.button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 13px 16px;
+        font-weight: 800;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .block-button.primary, a.button.primary {
+        background: linear-gradient(135deg, var(--accent), #ea580c);
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 16px 30px rgba(194, 65, 12, 0.22);
+      }
+      .block-button.secondary, a.button.secondary {
+        background: rgba(255,255,255,0.8);
+        color: var(--ink);
+      }
+      .note {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.7);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .error {
+        padding: 12px;
+        border-radius: 16px;
+        background: #fff1f2;
+        color: #be123c;
+        white-space: pre-wrap;
+        border: 1px solid #fecdd3;
+      }
+      .product-groups {
+        display: grid;
+        gap: 16px;
+      }
+      .product-group {
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.74);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .group-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+      .group-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .color-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: #fff7ed;
+        color: var(--accent-strong);
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+      }
+      .product-list {
+        display: grid;
+        gap: 12px;
+      }
+      .product-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.88);
+        border: 1px solid rgba(120, 104, 82, 0.08);
+        display: grid;
+        gap: 12px;
+      }
+      .product-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .product-title {
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+      .product-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .trial {
+        display: inline-block;
+        margin-bottom: 7px;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: var(--rose-soft);
+        color: var(--rose);
+        font-size: 10px;
+        font-weight: 800;
+      }
+      .product-metrics {
+        text-align: right;
+        min-width: 92px;
+      }
+      .product-metrics strong {
+        display: block;
+        font-size: 15px;
+      }
+      .product-metrics span {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .product-controls {
+        display: grid;
+        gap: 8px;
+      }
+      @media (min-width: 620px) {
+        .product-controls {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(120, 104, 82, 0.12);
+        background: rgba(255,255,255,0.78);
+      }
+      .toggle input {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        accent-color: var(--accent);
+      }
+      .toggle span {
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .empty {
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.72);
+        border: 1px dashed rgba(120, 104, 82, 0.20);
+        color: var(--muted);
+        font-size: 13px;
+        text-align: center;
+      }
+      .activity {
+        display: grid;
+        gap: 8px;
+      }
+      .activity-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.76);
+        border: 1px solid rgba(120, 104, 82, 0.08);
+      }
+      .activity-index {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+      }
+      .activity-copy {
+        flex: 1;
+        min-width: 0;
+      }
+      .activity-title {
+        font-size: 13px;
+        font-weight: 700;
+        line-height: 1.45;
+      }
+      .activity-item.tone-success .activity-index {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+      .activity-item.tone-warning .activity-index {
+        background: #fef3c7;
+        color: #b45309;
+      }
+      .activity-item.tone-error .activity-index {
+        background: var(--rose-soft);
+        color: var(--rose);
+      }
+      .daily-list,
+      .placeholder-steps {
+        display: grid;
+        gap: 12px;
+      }
+      .daily-item,
+      .placeholder-step {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.80);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .daily-item strong,
+      .placeholder-step strong {
+        display: block;
+        font-size: 14px;
+        margin-bottom: 6px;
+      }
+      .placeholder-board {
+        padding: 24px;
+        text-align: center;
+      }
+      .placeholder-art {
+        width: 68px;
+        height: 68px;
+        margin: 0 auto 16px;
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--violet), #be185d);
+        color: white;
+        font-size: 22px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        box-shadow: 0 18px 34px rgba(124, 58, 237, 0.18);
+      }
+      @media (min-width: 760px) {
+        .placeholder-steps {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .dock {
+        position: sticky;
+        bottom: 14px;
+        z-index: 5;
+        padding: 14px;
+        border-radius: 22px;
+        background: rgba(31, 26, 20, 0.90);
+        color: #fff;
+        box-shadow: 0 20px 50px rgba(31, 26, 20, 0.22);
+      }
+      .dock-row {
+        display: grid;
+        gap: 12px;
+      }
+      @media (min-width: 760px) {
+        .dock-row {
+          grid-template-columns: 1fr auto;
+          align-items: center;
+        }
+      }
+      .dock-title {
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .dock-copy {
+        margin-top: 4px;
+        color: rgba(255,255,255,0.72);
+        font-size: 12px;
+      }
+      .dock-actions {
+        display: grid;
+        gap: 10px;
+      }
+      @media (min-width: 520px) {
+        .dock-actions {
+          grid-template-columns: repeat(2, minmax(0, auto));
+          justify-content: end;
+        }
+      }
+      .dock .button,
+      .dock .block-button {
+        min-width: 180px;
+      }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <div class="stack">
+        <section id="error" class="error hidden"></section>
+
+        <div id="launcher-view" class="view-stack">
+          <section class="panel hero">
+            <div class="hero-grid">
+              <div class="hero-copy">
+                <span class="eyebrow">Notion Embed Launcher</span>
+                <div>
+                  <h1>A focused tool deck for the painting workflow.</h1>
+                  <p class="muted" style="margin-top: 10px;">
+                    The embed stays lightweight and mobile-first: Workflow Manager is live, Daily Workflow Generator is staged, and Bad Defect Tracker has a reserved launch slot.
+                  </p>
+                </div>
+                <div class="hero-notes">
+                  <div class="hero-note">
+                    <span class="dot"></span>
+                    <div>
+                      <strong>Launcher first, then focused tools</strong>
+                      <div class="muted">Open a single job at a time instead of dropping back into the heavy desktop shell.</div>
+                    </div>
+                  </div>
+                  <div class="hero-note">
+                    <span class="dot"></span>
+                    <div>
+                      <strong>Embed-safe by default</strong>
+                      <div class="muted">The current tokenized share flow, standard file picker, and manual workbook download stay right where Notion already tolerates them.</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="metrics">
+                <div class="metric">
+                  <div class="metric-label">Current status</div>
+                  <div class="metric-value" data-status-text>Connecting...</div>
+                  <div class="metric-sub">The launcher loads live calendar pages without leaving the lightweight embed route.</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">Tool mix</div>
+                  <div class="metric-value">1 live / 1 staged / 1 coming soon</div>
+                  <div class="metric-sub"><span data-calendar-count>0</span> upcoming calendar pages are ready for the live workflow.</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="launcher-grid">
+            <button class="panel launcher-card featured" data-launch="workflow" type="button">
+              <div class="launcher-card-head">
+                <span class="launcher-chip">Live now</span>
+                <span class="launcher-icon">WM</span>
+              </div>
+              <div>
+                <h2>Workflow Manager</h2>
+                <p>Upload a workbook, choose the right calendar page, review paint groups, and sync with the current Notion-safe flow.</p>
+              </div>
+              <span class="launcher-route">Open workflow</span>
+            </button>
+
+            <button class="panel launcher-card" data-launch="daily" type="button">
+              <div class="launcher-card-head">
+                <span class="launcher-chip success">Preview lane</span>
+                <span class="launcher-icon">DG</span>
+              </div>
+              <div>
+                <h2>Daily Workflow Generator</h2>
+                <p>See the staged automation lane without reintroducing the heavy shell. Live dates can surface here while the action stays intentionally limited.</p>
+              </div>
+              <span class="launcher-route success">Open preview</span>
+            </button>
+
+            <button class="panel launcher-card muted-card" data-launch="defects" type="button">
+              <div class="launcher-card-head">
+                <span class="launcher-chip rose">Coming soon</span>
+                <span class="launcher-icon">BD</span>
+              </div>
+              <div>
+                <h2>Bad Defect Tracker</h2>
+                <p>Keep the next tool visible in the launcher now, with a dedicated destination ready for defect logging once the underlying flow is implemented.</p>
+              </div>
+              <span class="launcher-route rose">View roadmap</span>
+            </button>
+          </section>
+
+          <section class="grid two">
+            <section class="panel card">
+              <h2>Why this stays safe in Notion</h2>
+              <div class="activity">
+                <div class="activity-item">
+                  <span class="activity-index">1</span>
+                  <div class="activity-copy">
+                    <h3>Dedicated share route</h3>
+                    <p class="muted">The launcher lives inside the current lightweight embed path instead of pulling the full React admin shell back into the frame.</p>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">2</span>
+                  <div class="activity-copy">
+                    <h3>Public token flow stays intact</h3>
+                    <p class="muted">No login wall, no redirect, and no extra navigation layer in front of the working tokenized embed session.</p>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">3</span>
+                  <div class="activity-copy">
+                    <h3>Mobile-safe finish</h3>
+                    <p class="muted">Workflow Manager still ends with a direct workbook download, which remains friendlier to Notion and iPad webviews than direct file-system writes.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel card">
+              <div class="card-head">
+                <div>
+                  <h2>Recent activity</h2>
+                  <p class="muted">The launcher keeps status visible before you open a tool.</p>
+                </div>
+                <span class="tag">Embed-safe</span>
+              </div>
+              <div id="activity-feed-home" class="activity"></div>
+            </section>
+          </section>
+        </div>
+
+        <div id="workflow-view" class="view-stack hidden">
+          <section class="panel view-header">
+            <div class="view-top">
+              <div>
+                <button class="back-link" data-back-home type="button">Back to launcher</button>
+                <h1 class="view-title">Workflow Manager</h1>
+                <p class="muted" style="margin-top: 10px;">
+                  The live workflow keeps the current lightweight upload, review, sync, and manual-download flow intact.
+                </p>
+              </div>
+              <div class="view-badges">
+                <span class="tag">Live tool</span>
+                <span class="tag success">Notion-safe</span>
+              </div>
+            </div>
+            <div class="note">
+              Compatibility mode stays on for the embed: standard file picker, bearer-token calls through <code>/embed-api/*</code>, and a processed workbook download after sync.
+              Current status: <strong data-status-text>Connecting...</strong>
+            </div>
+          </section>
+
+          <section class="workflow-grid">
+            <section class="panel card">
+              <div class="card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="step">1</span>
+                  <div>
+                    <h2 style="margin:0;">Choose the target page</h2>
+                    <p class="muted">Pick the calendar page that should receive the synced workload.</p>
+                  </div>
+                </div>
+                <span class="tag">Live Notion</span>
+              </div>
+              <div class="control">
+                <label for="calendar-select">Target page</label>
+                <select id="calendar-select">
+                  <option value="">Loading pages...</option>
+                </select>
+              </div>
+            </section>
+
+            <section class="panel card">
+              <div class="card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="step">2</span>
+                  <div>
+                    <h2 style="margin:0;">Upload the workbook</h2>
+                    <p class="muted">Use the standard file picker so the flow remains reliable inside Notion and on iPad.</p>
+                  </div>
+                </div>
+                <span class="tag success">Mobile-safe</span>
+              </div>
+              <div class="control">
+                <label for="file-input">Excel workbook</label>
+                <input id="file-input" type="file" accept=".xlsx,.xls" />
+                <div class="note" id="file-name">No workbook uploaded yet.</div>
+              </div>
+            </section>
+
+            <section class="panel card">
+              <div class="card-head">
+                <div style="display:flex;align-items:center;gap:10px;">
+                  <span class="step">3</span>
+                  <div>
+                    <h2 style="margin:0;">Sync summary</h2>
+                    <p class="muted">The review state updates as soon as a page and workbook are selected.</p>
+                  </div>
+                </div>
+                <span class="tag rose">Review first</span>
+              </div>
+              <div class="activity">
+                <div class="activity-item">
+                  <span class="activity-index">P</span>
+                  <div class="activity-copy">
+                    <div class="activity-title">Target page</div>
+                    <div id="workflow-target" class="muted">None selected.</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">F</span>
+                  <div class="activity-copy">
+                    <div class="activity-title">Workbook</div>
+                    <div id="workflow-file" class="muted">No workbook uploaded.</div>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">S</span>
+                  <div class="activity-copy">
+                    <div class="activity-title">Selected items</div>
+                    <div id="workflow-count" class="muted">0 ready to sync.</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel card">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="step">4</span>
+                <div>
+                  <h2 style="margin:0;">Review the paint groups</h2>
+                  <p class="muted">This focused view groups work by color so the embedded version stays scannable in tight frames.</p>
+                </div>
+              </div>
+              <div class="card-actions">
+                <button id="select-all-products" class="mini-button" type="button">Select all</button>
+                <span class="tag rose">Review before sync</span>
+              </div>
+            </div>
+            <div id="products-empty" class="empty">Upload a workbook to load products and choose what should sync.</div>
+            <div id="products" class="product-groups hidden"></div>
+          </section>
+
+          <section class="grid two">
+            <section class="panel card">
+              <h2>Why Workflow Manager stays stable here</h2>
+              <div class="activity">
+                <div class="activity-item">
+                  <span class="activity-index">1</span>
+                  <div class="activity-copy">
+                    <h3>One focused job</h3>
+                    <p class="muted">The launcher hands off into a single workflow instead of loading admin chrome, sidebars, and extra routes inside the embed.</p>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">2</span>
+                  <div class="activity-copy">
+                    <h3>Existing API path preserved</h3>
+                    <p class="muted">All live actions still go through the same bearer-protected <code>/embed-api/*</code> endpoints already working in production.</p>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">3</span>
+                  <div class="activity-copy">
+                    <h3>Download instead of direct write-back</h3>
+                    <p class="muted">The embedded route keeps the manual workbook handoff that behaves more predictably than native file APIs in Notion and on iPad.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel card">
+              <div class="card-head">
+                <div>
+                  <h2>Activity feed</h2>
+                  <p class="muted">Recent workflow actions stay visible while you review products.</p>
+                </div>
+                <span class="tag success">Live feed</span>
+              </div>
+              <div id="activity-feed-workflow" class="activity"></div>
+            </section>
+          </section>
+
+          <section class="dock">
+            <div class="dock-row">
+              <div>
+                <div class="dock-title">Ready to sync when both a page and workbook are selected.</div>
+                <div class="dock-copy" id="download-copy">After the sync completes, the processed workbook appears as a direct download action here.</div>
+              </div>
+              <div class="dock-actions">
+                <button id="sync-button" class="block-button primary" type="button" disabled>Sync to Notion</button>
+                <a id="download-link" class="button secondary hidden" href="#" download>Open processed workbook</a>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="daily-view" class="view-stack hidden">
+          <section class="panel view-header">
+            <div class="view-top">
+              <div>
+                <button class="back-link" data-back-home type="button">Back to launcher</button>
+                <h1 class="view-title">Daily Workflow Generator</h1>
+                <p class="muted" style="margin-top: 10px;">
+                  This stays in a staged preview inside the embed so we do not regress back to the heavy desktop shell.
+                </p>
+              </div>
+              <div class="view-badges">
+                <span class="tag success">Preview lane</span>
+                <span class="tag rose">Placeholder action</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="grid two">
+            <section class="panel card">
+              <div class="card-head">
+                <div>
+                  <h2>Live calendar preview</h2>
+                  <p class="muted">This lane can already surface the upcoming calendar pages available to the current embed session.</p>
+                </div>
+                <span class="tag">Live dates</span>
+              </div>
+              <div id="daily-page-list" class="daily-list"></div>
+            </section>
+
+            <section class="panel card">
+              <div class="card-head">
+                <div>
+                  <h2>Automation status</h2>
+                  <p class="muted">The generator action is intentionally staged for now.</p>
+                </div>
+                <span class="tag rose">Coming next</span>
+              </div>
+              <div class="note">
+                The embed can already surface live schedule context, but the automated generation endpoint is not wired into this lightweight route yet. Keeping it in preview avoids breaking the stable Notion and iPad experience.
+              </div>
+              <div class="control" style="margin-top: 14px;">
+                <button class="block-button primary" data-launch="workflow" type="button">Open Workflow Manager</button>
+                <button class="block-button secondary" type="button" disabled>Generator action coming soon</button>
+              </div>
+            </section>
+          </section>
+
+          <section class="panel card">
+            <div class="card-head">
+              <div>
+                <h2>Planned embed-safe path</h2>
+                <p class="muted">The next step is to wire automation without leaving the lightweight share route.</p>
+              </div>
+              <span class="tag success">Staged design</span>
+            </div>
+            <div class="placeholder-steps">
+              <div class="placeholder-step">
+                <strong>1. Pick the target day</strong>
+                <div class="muted">Use the same live calendar context already loaded for Workflow Manager.</div>
+              </div>
+              <div class="placeholder-step">
+                <strong>2. Prepare the source workbook</strong>
+                <div class="muted">Keep upload and processing inside the current mobile-safe file picker flow.</div>
+              </div>
+              <div class="placeholder-step">
+                <strong>3. Generate without extra chrome</strong>
+                <div class="muted">Ship automation only when it can live in this focused embed view instead of the desktop admin shell.</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="defects-view" class="view-stack hidden">
+          <section class="panel view-header">
+            <div class="view-top">
+              <div>
+                <button class="back-link" data-back-home type="button">Back to launcher</button>
+                <h1 class="view-title">Bad Defect Tracker</h1>
+                <p class="muted" style="margin-top: 10px;">
+                  This slot is now visible in the launcher, but the working defect flow is still intentionally held back until the data model and endpoints are ready.
+                </p>
+              </div>
+              <div class="view-badges">
+                <span class="tag violet">Coming soon</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card placeholder-board">
+            <div class="placeholder-art">BD</div>
+            <h2>Reserved launch slot for the next tool</h2>
+            <p class="muted" style="max-width: 560px; margin: 12px auto 0;">
+              The launcher now has a stable destination for defect tracking without pretending the workflow is live. That keeps the embed intentional today and gives this tool a clear place to land later.
+            </p>
+            <div class="control" style="max-width: 360px; margin: 18px auto 0;">
+              <button class="block-button primary" data-launch="workflow" type="button">Open Workflow Manager</button>
+            </div>
+          </section>
+
+          <section class="grid two">
+            <section class="panel card">
+              <h2>Expected phases</h2>
+              <div class="placeholder-steps">
+                <div class="placeholder-step">
+                  <strong>Capture</strong>
+                  <div class="muted">Log defect details, source line, and affected part without forcing a desktop-style admin layout into the embed.</div>
+                </div>
+                <div class="placeholder-step">
+                  <strong>Triage</strong>
+                  <div class="muted">Route the issue to the right owner and surface its status in a compact, scan-friendly mobile frame.</div>
+                </div>
+                <div class="placeholder-step">
+                  <strong>Resolve</strong>
+                  <div class="muted">Close the loop back into Notion only after the embed flow is proven stable.</div>
+                </div>
+              </div>
+            </section>
+
+            <section class="panel card">
+              <h2>Why it stays placeholder today</h2>
+              <div class="activity">
+                <div class="activity-item">
+                  <span class="activity-index">1</span>
+                  <div class="activity-copy">
+                    <h3>Compatibility first</h3>
+                    <p class="muted">Shipping a placeholder is safer than bolting on another heavy route that could disturb the working Notion embed.</p>
+                  </div>
+                </div>
+                <div class="activity-item">
+                  <span class="activity-index">2</span>
+                  <div class="activity-copy">
+                    <h3>Clear ownership</h3>
+                    <p class="muted">The launcher makes the future tool visible now without confusing users about what is already production-ready.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        const bootstrapError = ${JSON.stringify(bootstrapState.error || '')};
+        const errorEl = document.getElementById('error');
+        const statusEls = Array.from(document.querySelectorAll('[data-status-text]'));
+        const calendarCountEls = Array.from(document.querySelectorAll('[data-calendar-count]'));
+        const launcherViewEl = document.getElementById('launcher-view');
+        const workflowViewEl = document.getElementById('workflow-view');
+        const dailyViewEl = document.getElementById('daily-view');
+        const defectsViewEl = document.getElementById('defects-view');
+        const calendarSelectEl = document.getElementById('calendar-select');
+        const fileInputEl = document.getElementById('file-input');
+        const fileNameEl = document.getElementById('file-name');
+        const syncButtonEl = document.getElementById('sync-button');
+        const productsEl = document.getElementById('products');
+        const productsEmptyEl = document.getElementById('products-empty');
+        const downloadLinkEl = document.getElementById('download-link');
+        const downloadCopyEl = document.getElementById('download-copy');
+        const workflowTargetEl = document.getElementById('workflow-target');
+        const workflowFileEl = document.getElementById('workflow-file');
+        const workflowCountEl = document.getElementById('workflow-count');
+        const bulkSelectEl = document.getElementById('select-all-products');
+        const dailyPageListEl = document.getElementById('daily-page-list');
+        const activityFeedHomeEl = document.getElementById('activity-feed-home');
+        const activityFeedWorkflowEl = document.getElementById('activity-feed-workflow');
+        const viewMap = {
+          launcher: launcherViewEl,
+          workflow: workflowViewEl,
+          daily: dailyViewEl,
+          defects: defectsViewEl
+        };
+
+        const state = {
+          accessToken: ${JSON.stringify(bootstrapState.accessToken || '')},
+          selectedFile: '',
+          selectedCalendarId: '',
+          calendarPages: [],
+          calendarLoaded: false,
+          products: [],
+          downloadUrl: '',
+          currentView: 'launcher',
+          activity: []
+        };
+
+        const escapeHtml = function (value) {
+          return String(value || '').replace(/[&<>"']/g, function (match) {
+            return {
+              '&': '&amp;',
+              '<': '&lt;',
+              '>': '&gt;',
+              '"': '&quot;',
+              "'": '&#39;'
+            }[match];
+          });
+        };
+
+        const clearError = function () {
+          errorEl.textContent = '';
+          errorEl.classList.add('hidden');
+        };
+
+        const setStatus = function (message) {
+          statusEls.forEach(function (el) {
+            el.textContent = message;
+          });
+        };
+
+        const setCalendarCount = function (count) {
+          calendarCountEls.forEach(function (el) {
+            el.textContent = String(count);
+          });
+        };
+
+        const renderActivity = function () {
+          const html = state.activity.length
+            ? state.activity.map(function (entry, index) {
+                return '' +
+                  '<div class="activity-item tone-' + escapeHtml(entry.tone || 'info') + '">' +
+                    '<span class="activity-index">' + (index + 1) + '</span>' +
+                    '<div class="activity-copy">' +
+                      '<div class="activity-title">' + escapeHtml(entry.message) + '</div>' +
+                      '<div class="muted">' + escapeHtml(entry.time) + '</div>' +
+                    '</div>' +
+                  '</div>';
+              }).join('')
+            : '<div class="empty">Waiting for the first action.</div>';
+
+          activityFeedHomeEl.innerHTML = html;
+          activityFeedWorkflowEl.innerHTML = html;
+        };
+
+        const addActivity = function (message, tone) {
+          const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
+          state.activity.unshift({
+            message: String(message),
+            time: timestamp,
+            tone: tone || 'info'
+          });
+          state.activity = state.activity.slice(0, 6);
+          renderActivity();
+        };
+
+        const setError = function (message) {
+          errorEl.textContent = String(message);
+          errorEl.classList.remove('hidden');
+          setStatus('Needs attention');
+          addActivity(String(message), 'error');
+        };
+
+        const setView = function (view) {
+          const nextView = viewMap[view] ? view : 'launcher';
+          state.currentView = nextView;
+          Object.keys(viewMap).forEach(function (key) {
+            const element = viewMap[key];
+            if (!element) return;
+            element.classList.toggle('hidden', key !== nextView);
+          });
+          window.scrollTo(0, 0);
+        };
+
+        const updateSyncButton = function () {
+          syncButtonEl.disabled = !(state.selectedFile && state.selectedCalendarId && state.products.length);
+        };
+
+        const updateWorkflowSummary = function () {
+          const selectedPage = state.calendarPages.find(function (page) {
+            return page.id === state.selectedCalendarId;
+          });
+          workflowTargetEl.textContent = selectedPage
+            ? (selectedPage.title || 'Untitled page') + ' (' + (selectedPage.date || '') + ')'
+            : 'None selected.';
+          workflowFileEl.textContent = state.selectedFile || 'No workbook uploaded.';
+          workflowCountEl.textContent = state.products.filter(function (product) {
+            return product.selected;
+          }).length + ' ready to sync.';
+        };
+
+        const updateBulkSelectLabel = function () {
+          if (!state.products.length) {
+            bulkSelectEl.textContent = 'Select all';
+            bulkSelectEl.disabled = true;
+            return;
+          }
+
+          bulkSelectEl.disabled = false;
+          bulkSelectEl.textContent = state.products.every(function (product) {
+            return product.selected;
+          }) ? 'Clear selection' : 'Select all';
+        };
+
+        const apiFetch = async function (path, init) {
+          const headers = new Headers((init && init.headers) || {});
+          headers.set('Authorization', 'Bearer ' + state.accessToken);
+          return fetch(path, Object.assign({}, init || {}, { headers: headers }));
+        };
+
+        const revokeDownload = function () {
+          if (state.downloadUrl) {
+            URL.revokeObjectURL(state.downloadUrl);
+            state.downloadUrl = '';
+          }
+          downloadLinkEl.className = 'button secondary hidden';
+          downloadLinkEl.removeAttribute('href');
+          downloadCopyEl.textContent = 'After the sync completes, the processed workbook appears as a direct download action here.';
+        };
+
+        const createDownload = function (base64, filename) {
+          revokeDownload();
+          const binary = atob(base64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          });
+          state.downloadUrl = URL.createObjectURL(blob);
+          downloadLinkEl.href = state.downloadUrl;
+          downloadLinkEl.download = filename;
+          downloadLinkEl.className = 'button primary';
+          downloadLinkEl.textContent = 'Open processed workbook';
+          downloadLinkEl.classList.remove('hidden');
+          downloadCopyEl.textContent = filename + ' is ready to open after sync.';
+        };
+
+        const renderDailyPages = function () {
+          if (!state.calendarLoaded) {
+            dailyPageListEl.innerHTML = '<div class="empty">Upcoming calendar pages will appear here once the launcher finishes loading.</div>';
+            return;
+          }
+
+          if (!state.calendarPages.length) {
+            dailyPageListEl.innerHTML = '<div class="empty">No upcoming calendar pages were returned for this embed session.</div>';
+            return;
+          }
+
+          dailyPageListEl.innerHTML = state.calendarPages.map(function (page) {
+            return '' +
+              '<div class="daily-item">' +
+                '<strong>' + escapeHtml(page.date || 'No date') + '</strong>' +
+                '<div class="muted">' + escapeHtml(page.title || 'Untitled page') + '</div>' +
+              '</div>';
+          }).join('');
+        };
+
+        const renderProducts = function () {
+          if (!state.products.length) {
+            productsEl.classList.add('hidden');
+            productsEmptyEl.classList.remove('hidden');
+            productsEmptyEl.textContent = state.selectedFile
+              ? 'No products were found in the uploaded workbook.'
+              : 'Upload a workbook to load products and choose what should sync.';
+            updateBulkSelectLabel();
+            updateWorkflowSummary();
+            updateSyncButton();
+            return;
+          }
+
+          productsEmptyEl.classList.add('hidden');
+          productsEl.classList.remove('hidden');
+
+          const groups = state.products.reduce(function (acc, product, index) {
+            const groupKey = (product.color || 'Unspecified').trim() || 'Unspecified';
+            if (!acc[groupKey]) acc[groupKey] = [];
+            acc[groupKey].push({ product: product, index: index });
+            return acc;
+          }, {});
+
+          productsEl.innerHTML = Object.keys(groups).sort().map(function (groupKey) {
+            const items = groups[groupKey];
+            const selectedCount = items.filter(function (item) {
+              return item.product.selected;
+            }).length;
+
+            const cards = items.map(function (item) {
+              const product = item.product;
+              const trial = product.trial
+                ? '<span class="trial">' + escapeHtml(product.trial) + '</span>'
+                : '';
+
+              return '' +
+                '<article class="product-card">' +
+                  '<div class="product-top">' +
+                    '<div>' +
+                      trial +
+                      '<div class="product-title">' + escapeHtml(product.part || 'Untitled part') + '</div>' +
+                      '<div class="product-sub">' + escapeHtml(product.date || 'No date') + ' / ' + escapeHtml(product.color || 'No color') + '</div>' +
+                    '</div>' +
+                    '<div class="product-metrics">' +
+                      '<strong>' + escapeHtml(product.qty || 0) + ' pcs</strong>' +
+                      '<span>' + escapeHtml(product.ct || 0) + ' sec / part</span>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="product-controls">' +
+                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="selected"' + (product.selected ? ' checked' : '') + ' /><span>Sync this item</span></label>' +
+                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="colorAccent"' + (product.colorAccent ? ' checked' : '') + ' /><span>Append color to part</span></label>' +
+                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="override"' + (product.override ? ' checked' : '') + ' /><span>Override existing data</span></label>' +
+                  '</div>' +
+                '</article>';
+            }).join('');
+
+            return '' +
+              '<section class="product-group">' +
+                '<div class="group-head">' +
+                  '<div class="group-meta">' +
+                    '<span class="color-chip"><span class="swatch"></span>' + escapeHtml(groupKey) + '</span>' +
+                    '<span class="tag">' + items.length + ' items</span>' +
+                  '</div>' +
+                  '<span class="tag success">' + selectedCount + ' selected</span>' +
+                '</div>' +
+                '<div class="product-list">' + cards + '</div>' +
+              '</section>';
+          }).join('');
+
+          updateBulkSelectLabel();
+          updateWorkflowSummary();
+          updateSyncButton();
+        };
+
+        Array.from(document.querySelectorAll('[data-launch]')).forEach(function (button) {
+          button.addEventListener('click', function () {
+            setView(button.getAttribute('data-launch'));
+          });
+        });
+
+        Array.from(document.querySelectorAll('[data-back-home]')).forEach(function (button) {
+          button.addEventListener('click', function () {
+            setView('launcher');
+          });
+        });
+
+        productsEl.addEventListener('change', function (event) {
+          const target = event.target;
+          if (!target || target.tagName !== 'INPUT') return;
+          const index = Number(target.getAttribute('data-index'));
+          const key = target.getAttribute('data-key');
+          if (!Number.isNaN(index) && key) {
+            state.products[index][key] = target.checked;
+            renderProducts();
+          }
+        });
+
+        bulkSelectEl.addEventListener('click', function () {
+          if (!state.products.length) return;
+          const shouldSelect = state.products.some(function (product) {
+            return !product.selected;
+          });
+          state.products = state.products.map(function (product) {
+            return Object.assign({}, product, { selected: shouldSelect });
+          });
+          renderProducts();
+          addActivity(
+            shouldSelect ? 'Selected all loaded products.' : 'Cleared all loaded product selections.',
+            'info'
+          );
+        });
+
+        const loadCalendar = async function () {
+          clearError();
+          setStatus('Loading calendar');
+          const response = await apiFetch('/embed-api/calendar');
+          const data = await response.json();
+          if (!response.ok || !Array.isArray(data)) {
+            throw new Error((data && data.error) || 'Failed to load calendar.');
+          }
+
+          state.calendarLoaded = true;
+          state.calendarPages = data;
+          calendarSelectEl.innerHTML =
+            '<option value="">Choose a calendar page...</option>' +
+            data.map(function (page) {
+              const title = (page.title || 'Untitled') + ' (' + (page.date || '') + ')';
+              return '<option value="' + escapeHtml(page.id) + '">' + escapeHtml(title) + '</option>';
+            }).join('');
+
+          renderDailyPages();
+          setCalendarCount(data.length);
+          updateWorkflowSummary();
+          setStatus(state.currentView === 'workflow' ? 'Ready for workbook' : 'Launcher ready');
+          addActivity('Calendar loaded and launcher is ready.', 'success');
+        };
+
+        const loadProducts = async function () {
+          if (!state.selectedFile) return;
+          clearError();
+          setStatus('Reviewing workbook');
+          const response = await apiFetch('/embed-api/load-products', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filePath: state.selectedFile })
+          });
+          const data = await response.json();
+          if (!response.ok || !Array.isArray(data)) {
+            throw new Error((data && data.error) || 'Failed to load products.');
+          }
+
+          state.products = data;
+          renderProducts();
+          setStatus('Ready to sync');
+          addActivity('Loaded ' + data.length + ' products from ' + state.selectedFile + '.', 'success');
+        };
+
+        calendarSelectEl.addEventListener('change', function (event) {
+          state.selectedCalendarId = event.target.value;
+          updateWorkflowSummary();
+          updateSyncButton();
+        });
+
+        fileInputEl.addEventListener('change', async function (event) {
+          try {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+
+            clearError();
+            revokeDownload();
+            setStatus('Uploading workbook');
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const response = await apiFetch('/embed-api/upload', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+            if (!response.ok || !data.filename) {
+              throw new Error((data && data.error) || 'Upload failed.');
+            }
+
+            state.selectedFile = data.filename;
+            state.products = [];
+            fileNameEl.textContent = 'Uploaded workbook: ' + data.filename;
+            renderProducts();
+            updateSyncButton();
+            addActivity('Workbook uploaded: ' + data.filename + '.', 'success');
+            setView('workflow');
+            await loadProducts();
+          } catch (error) {
+            setError(error && error.message ? error.message : error);
+          } finally {
+            event.target.value = '';
+          }
+        });
+
+        syncButtonEl.addEventListener('click', async function () {
+          if (!state.selectedFile || !state.selectedCalendarId) return;
+          try {
+            clearError();
+            syncButtonEl.disabled = true;
+            setStatus('Syncing to Notion');
+            addActivity('Running sync for the selected paint groups.', 'warning');
+            const response = await apiFetch('/embed-api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                file_path: state.selectedFile,
+                page_id: state.selectedCalendarId,
+                products: state.products
+              })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error((data && data.error) || 'Sync failed.');
+            }
+
+            if (data && data.buffer) {
+              createDownload(data.buffer, state.selectedFile || 'updated_plan.xlsx');
+            }
+
+            setStatus('Sync complete');
+            addActivity('Sync finished. The processed workbook is ready to open.', 'success');
+          } catch (error) {
+            setError(error && error.message ? error.message : error);
+          } finally {
+            updateSyncButton();
+          }
+        });
+
+        const initialize = async function () {
+          try {
+            clearError();
+            if (bootstrapError) {
+              throw new Error(bootstrapError);
+            }
+
+            if (!state.accessToken) {
+              throw new Error('Missing embed access token.');
+            }
+
+            addActivity('Embed launcher initialized.', 'info');
+            renderActivity();
+            renderDailyPages();
+            updateBulkSelectLabel();
+            updateWorkflowSummary();
+
+            const params = new URLSearchParams(window.location.search);
+            const tool = params.get('tool') || '';
+            if (tool === 'workflow' || tool === 'workflow-manager') {
+              setView('workflow');
+            } else if (tool === 'daily' || tool === 'daily-generator') {
+              setView('daily');
+            } else if (tool === 'defects' || tool === 'bad-defect-tracker') {
+              setView('defects');
+            } else {
+              setView('launcher');
+            }
+
+            await loadCalendar();
+          } catch (error) {
+            setError(error && error.message ? error.message : error);
+          }
+        };
 
         window.addEventListener('beforeunload', revokeDownload);
         initialize();
