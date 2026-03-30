@@ -2373,6 +2373,251 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
       .dock .block-button {
         min-width: 180px;
       }
+      .launcher-screen {
+        gap: 18px;
+      }
+      .launcher-topbar,
+      .launcher-hero,
+      .launcher-overview,
+      .launcher-tools,
+      .list-panel {
+        border-color: rgba(120, 104, 82, 0.10);
+        background: rgba(255,255,255,0.76);
+        box-shadow: 0 10px 30px rgba(55, 34, 18, 0.05);
+      }
+      .launcher-topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        flex-wrap: wrap;
+      }
+      .launcher-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-mark {
+        width: 36px;
+        height: 36px;
+        border-radius: 12px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(245, 238, 230, 0.96));
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        color: var(--ink);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.10em;
+      }
+      .brand-copy strong {
+        display: block;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .brand-copy span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .launcher-nav {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .nav-pill {
+        width: auto;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .nav-pill.active {
+        background: rgba(255,255,255,0.82);
+        border-color: rgba(120, 104, 82, 0.10);
+        color: var(--ink);
+      }
+      .nav-pill:not(.active):hover {
+        background: rgba(255,255,255,0.64);
+      }
+      .launcher-hero {
+        padding: 28px 20px;
+        background:
+          linear-gradient(180deg, rgba(255,255,255,0.84), rgba(255,252,247,0.90));
+      }
+      .launcher-hero-copy {
+        max-width: 620px;
+        display: grid;
+        gap: 14px;
+      }
+      .launcher-kicker {
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+      .launcher-support {
+        max-width: 520px;
+        color: var(--muted);
+        font-size: 15px;
+        line-height: 1.6;
+      }
+      .launcher-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .launcher-primary {
+        width: auto;
+        min-width: 172px;
+      }
+      .launcher-secondary {
+        width: auto;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .launcher-overview,
+      .launcher-tools,
+      .list-panel {
+        padding: 18px 20px;
+      }
+      .launcher-section-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .launcher-status {
+        display: inline-flex;
+        align-items: center;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.82);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        color: var(--ink);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .overview-grid {
+        display: grid;
+        border-top: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      @media (min-width: 760px) {
+        .overview-grid {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .overview-item {
+        display: grid;
+        gap: 8px;
+        padding: 16px 0;
+      }
+      .overview-item:not(:last-child) {
+        border-bottom: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      @media (min-width: 760px) {
+        .overview-item:not(:last-child) {
+          border-bottom: 0;
+          border-right: 1px solid rgba(120, 104, 82, 0.10);
+          padding-right: 18px;
+        }
+        .overview-item:not(:first-child) {
+          padding-left: 18px;
+        }
+      }
+      .overview-label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+      }
+      .overview-item strong {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .overview-note {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .tool-list,
+      .utility-list {
+        display: grid;
+      }
+      .tool-row,
+      .utility-row {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 15px 0;
+        text-align: left;
+        border-bottom: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .tool-row:last-child,
+      .utility-row:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      .tool-row:first-child,
+      .utility-row:first-child {
+        padding-top: 0;
+      }
+      .tool-copy {
+        display: grid;
+        gap: 4px;
+      }
+      .tool-copy strong {
+        font-size: 16px;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+      }
+      .tool-copy span,
+      .utility-row span:last-child {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .tool-action {
+        color: var(--accent-strong);
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .tool-row.primary .tool-copy strong {
+        color: var(--ink);
+      }
+      .activity-compact .activity-item {
+        padding: 14px 0;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid rgba(120, 104, 82, 0.10);
+        border-radius: 0;
+      }
+      .activity-compact .activity-item:last-child {
+        border-bottom: 0;
+        padding-bottom: 0;
+      }
+      .activity-compact .activity-index {
+        width: 18px;
+        height: 18px;
+        font-size: 10px;
+      }
+      .utility-row span:first-child {
+        font-size: 14px;
+        font-weight: 600;
+      }
       .hidden { display: none !important; }
     </style>
   </head>
@@ -2381,237 +2626,126 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
       <div class="stack">
         <section id="error" class="error hidden"></section>
 
-        <div id="launcher-view" class="view-stack">
-          <section class="panel hero">
-            <div class="hero-grid">
-              <div class="hero-copy">
-                <span class="eyebrow">
-                  <svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 3v4"></path>
-                    <path d="M12 17v4"></path>
-                    <path d="M4 12h4"></path>
-                    <path d="M16 12h4"></path>
-                    <path d="M6.5 6.5 9 9"></path>
-                    <path d="M15 15l2.5 2.5"></path>
-                    <path d="M17.5 6.5 15 9"></path>
-                    <path d="M9 15l-2.5 2.5"></path>
-                  </svg>
-                  Embed Launcher
-                </span>
-                <div>
-                  <h1>Open the tool, not the admin shell.</h1>
-                  <p class="muted" style="margin-top: 10px;">
-                    Workflow-first, touch-safe, and tuned for Notion frames.
-                  </p>
-                </div>
-                <div class="hero-actions">
-                  <button class="quick-button primary" data-launch="workflow" type="button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M4 13h4l2-8 4 14 2-6h4"></path>
-                    </svg>
-                    <span>Workflow</span>
-                  </button>
-                  <button class="quick-button teal" data-launch="daily" type="button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M7 3v4"></path>
-                      <path d="M17 3v4"></path>
-                      <path d="M4 9h16"></path>
-                      <path d="M5 6h14a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1Z"></path>
-                      <path d="M12 13h.01"></path>
-                    </svg>
-                    <span>Daily</span>
-                  </button>
-                  <button class="quick-button violet" data-launch="defects" type="button">
-                    <svg viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="M9 9h6v6H9z"></path>
-                      <path d="M12 3v3"></path>
-                      <path d="M4.5 8.5 7 10"></path>
-                      <path d="M19.5 8.5 17 10"></path>
-                      <path d="M4 14h3"></path>
-                      <path d="M17 14h3"></path>
-                      <path d="M7 18 5.5 20"></path>
-                      <path d="M17 18l1.5 2"></path>
-                    </svg>
-                    <span>Defects</span>
-                  </button>
-                </div>
-                <div class="hero-notes">
-                  <div class="hero-note">
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 3 19 6v6c0 4.4-2.9 7-7 9-4.1-2-7-4.6-7-9V6l7-3Z"></path>
-                        <path d="m9.5 12 1.7 1.7 3.8-4"></path>
-                      </svg>
-                    </span>
-                    <div>
-                      <strong>Focused launch</strong>
-                      <div class="muted">One job at a time. No heavy admin chrome.</div>
-                    </div>
-                  </div>
-                  <div class="hero-note">
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M10 14 14 10"></path>
-                        <path d="m7.5 16.5-1 1a3 3 0 1 1-4-4l3-3a3 3 0 0 1 4 0l1 1"></path>
-                        <path d="m16.5 7.5 1-1a3 3 0 1 1 4 4l-3 3a3 3 0 0 1-4 0l-1-1"></path>
-                      </svg>
-                    </span>
-                    <div>
-                      <strong>Safe path</strong>
-                      <div class="muted">Same token flow, picker, and manual download.</div>
-                    </div>
-                  </div>
-                </div>
+        <div id="launcher-view" class="view-stack launcher-screen">
+          <section class="panel launcher-topbar">
+            <div class="launcher-brand">
+              <div class="brand-mark">PT</div>
+              <div class="brand-copy">
+                <strong>Painting Team</strong>
+                <span>Embed tools</span>
               </div>
-              <div class="metrics">
-                <div class="metric">
-                  <div class="metric-head">
-                    <div class="metric-label">Status</div>
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 5v7l4 2"></path>
-                        <circle cx="12" cy="12" r="8"></circle>
-                      </svg>
-                    </span>
-                  </div>
-                  <div class="metric-value" data-status-text>Connecting...</div>
-                  <div class="metric-sub">Live embed session</div>
-                </div>
-                <div class="metric">
-                  <div class="metric-head">
-                    <div class="metric-label">Mix</div>
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <rect x="4" y="4" width="6" height="6" rx="1"></rect>
-                        <rect x="14" y="4" width="6" height="6" rx="1"></rect>
-                        <rect x="4" y="14" width="6" height="6" rx="1"></rect>
-                        <rect x="14" y="14" width="6" height="6" rx="1"></rect>
-                      </svg>
-                    </span>
-                  </div>
-                  <div class="metric-value">1 live / 1 staged / 1 coming soon</div>
-                  <div class="metric-sub"><span data-calendar-count>0</span> pages loaded</div>
-                </div>
+            </div>
+            <nav class="launcher-nav" aria-label="Launcher navigation">
+              <span class="nav-pill active">Home</span>
+              <button class="nav-pill" data-launch="workflow" type="button">Workflow</button>
+              <button class="nav-pill" data-launch="daily" type="button">Daily</button>
+              <button class="nav-pill" data-launch="defects" type="button">Defects</button>
+            </nav>
+          </section>
+
+          <section class="panel launcher-hero">
+            <div class="launcher-hero-copy">
+              <p class="launcher-kicker">Launcher</p>
+              <h1>Workflow tools, simplified.</h1>
+              <p class="launcher-support">Start with the live workflow and keep the frame calm.</p>
+              <div class="launcher-actions">
+                <button class="block-button primary launcher-primary" data-launch="workflow" type="button">Open Workflow</button>
+                <button class="launcher-secondary" data-refresh-launcher type="button">Refresh</button>
               </div>
             </div>
           </section>
 
-          <section class="launcher-grid">
-            <button class="panel launcher-card featured" data-launch="workflow" type="button">
-              <div class="launcher-card-head">
-                <span class="launcher-chip">Live now</span>
-                <span class="launcher-icon">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 13h4l2-8 4 14 2-6h4"></path>
-                  </svg>
-                </span>
-              </div>
+          <section class="panel launcher-overview">
+            <div class="launcher-section-head">
               <div>
-                <h2>Workflow</h2>
-                <p>Upload, review, sync.</p>
+                <h2>Overview</h2>
+                <p class="muted">Status, availability, next step.</p>
               </div>
-              <span class="launcher-route">Open</span>
-            </button>
+              <div class="launcher-status" data-status-text>Connecting...</div>
+            </div>
+            <div class="overview-grid">
+              <div class="overview-item">
+                <span class="overview-label">Availability</span>
+                <strong>Workflow live</strong>
+                <span class="overview-note"><span data-calendar-count>0</span> pages ready</span>
+              </div>
+              <div class="overview-item">
+                <span class="overview-label">Focus</span>
+                <strong>Workflow Manager</strong>
+                <span class="overview-note">Primary working feature</span>
+              </div>
+              <div class="overview-item">
+                <span class="overview-label">Next</span>
+                <strong>Open workflow</strong>
+                <span class="overview-note">Choose a page and workbook</span>
+              </div>
+            </div>
+          </section>
 
-            <button class="panel launcher-card" data-launch="daily" type="button">
-              <div class="launcher-card-head">
-                <span class="launcher-chip success">Preview lane</span>
-                <span class="launcher-icon">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M7 3v4"></path>
-                    <path d="M17 3v4"></path>
-                    <path d="M4 9h16"></path>
-                    <path d="M5 6h14a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a1 1 0 0 1 1-1Z"></path>
-                    <path d="M12 13h.01"></path>
-                  </svg>
-                </span>
-              </div>
+          <section class="panel launcher-tools">
+            <div class="launcher-section-head">
               <div>
-                <h2>Daily</h2>
-                <p>Live dates, staged action.</p>
+                <h2>Tools</h2>
+                <p class="muted">Quiet entry points.</p>
               </div>
-              <span class="launcher-route success">Preview</span>
-            </button>
-
-            <button class="panel launcher-card muted-card" data-launch="defects" type="button">
-              <div class="launcher-card-head">
-                <span class="launcher-chip rose">Coming soon</span>
-                <span class="launcher-icon">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M9 9h6v6H9z"></path>
-                    <path d="M12 3v3"></path>
-                    <path d="M4.5 8.5 7 10"></path>
-                    <path d="M19.5 8.5 17 10"></path>
-                    <path d="M4 14h3"></path>
-                    <path d="M17 14h3"></path>
-                    <path d="M7 18 5.5 20"></path>
-                    <path d="M17 18l1.5 2"></path>
-                  </svg>
-                </span>
-              </div>
-              <div>
-                <h2>Defects</h2>
-                <p>Reserved slot for the next tool.</p>
-              </div>
-              <span class="launcher-route rose">Soon</span>
-            </button>
+            </div>
+            <div class="tool-list">
+              <button class="tool-row primary" data-launch="workflow" type="button">
+                <div class="tool-copy">
+                  <strong>Workflow Manager</strong>
+                  <span>Live</span>
+                </div>
+                <span class="tool-action">Open</span>
+              </button>
+              <button class="tool-row" data-launch="daily" type="button">
+                <div class="tool-copy">
+                  <strong>Daily Workflow Generator</strong>
+                  <span>Preview</span>
+                </div>
+                <span class="tool-action">Preview</span>
+              </button>
+              <button class="tool-row" data-launch="defects" type="button">
+                <div class="tool-copy">
+                  <strong>Bad Defect Tracker</strong>
+                  <span>Coming soon</span>
+                </div>
+                <span class="tool-action">View</span>
+              </button>
+            </div>
           </section>
 
           <section class="grid two">
-            <section class="panel card">
-              <h2>Embed Fit</h2>
-              <div class="micro-grid">
-                <div class="micro-card">
-                  <div class="micro-head">
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <rect x="4" y="6" width="16" height="12" rx="2"></rect>
-                        <path d="M8 10h8"></path>
-                        <path d="M8 14h5"></path>
-                      </svg>
-                    </span>
-                    <strong>Share view</strong>
-                  </div>
-                  <div class="micro-copy">Still lightweight.</div>
-                </div>
-                <div class="micro-card">
-                  <div class="micro-head">
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M10 14 14 10"></path>
-                        <path d="m7.5 16.5-1 1a3 3 0 1 1-4-4l3-3a3 3 0 0 1 4 0l1 1"></path>
-                        <path d="m16.5 7.5 1-1a3 3 0 1 1 4 4l-3 3a3 3 0 0 1-4 0l-1-1"></path>
-                      </svg>
-                    </span>
-                    <strong>Token flow</strong>
-                  </div>
-                  <div class="micro-copy">No redirects added.</div>
-                </div>
-                <div class="micro-card">
-                  <div class="micro-head">
-                    <span class="icon-shell soft">
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path d="M12 5v11"></path>
-                        <path d="m8 12 4 4 4-4"></path>
-                        <path d="M4 19h16"></path>
-                      </svg>
-                    </span>
-                    <strong>Manual finish</strong>
-                  </div>
-                  <div class="micro-copy">Safer on iPad.</div>
-                </div>
-              </div>
-            </section>
-
-            <section class="panel card">
-              <div class="card-head">
+            <section class="panel card list-panel">
+              <div class="launcher-section-head">
                 <div>
                   <h2>Recent activity</h2>
-                  <p class="muted">The launcher keeps status visible before you open a tool.</p>
+                  <p class="muted">Latest updates.</p>
                 </div>
-                <span class="tag">Embed-safe</span>
               </div>
-              <div id="activity-feed-home" class="activity"></div>
+              <div id="activity-feed-home" class="activity activity-compact"></div>
+            </section>
+
+            <section class="panel card list-panel">
+              <div class="launcher-section-head">
+                <div>
+                  <h2>Utilities</h2>
+                  <p class="muted">Small actions.</p>
+                </div>
+              </div>
+              <div class="utility-list">
+                <button class="utility-row" data-refresh-launcher type="button">
+                  <span>Refresh launcher</span>
+                  <span>Reload</span>
+                </button>
+                <button class="utility-row" data-launch="workflow" type="button">
+                  <span>Open workflow</span>
+                  <span>Go</span>
+                </button>
+                <button class="utility-row" data-launch="daily" type="button">
+                  <span>Daily preview</span>
+                  <span>View</span>
+                </button>
+              </div>
             </section>
           </section>
         </div>
@@ -3297,6 +3431,16 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         Array.from(document.querySelectorAll('[data-launch]')).forEach(function (button) {
           button.addEventListener('click', function () {
             setView(button.getAttribute('data-launch'));
+          });
+        });
+
+        Array.from(document.querySelectorAll('[data-refresh-launcher]')).forEach(function (button) {
+          button.addEventListener('click', async function () {
+            try {
+              await loadCalendar();
+            } catch (error) {
+              setError(error && error.message ? error.message : error);
+            }
           });
         });
 
