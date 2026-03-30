@@ -127,6 +127,51 @@ const verifyEmbedToken = (token: string, secret: string): EmbedClaims => {
   return claims;
 };
 
+const createEmbedSessionAccessToken = (linkToken: string): string => {
+  if (!EMBED_LINK_SECRET || !EMBED_SESSION_SECRET) {
+    throw new Error('Embed secrets are not configured');
+  }
+
+  const linkClaims = verifyEmbedToken(linkToken, EMBED_LINK_SECRET);
+  if (linkClaims.aud !== 'notion_embed_link') {
+    throw new Error('Invalid audience');
+  }
+
+  const sessionTtl = clamp(EMBED_SESSION_TTL_SEC, 60, 7200);
+  const iat = nowSeconds();
+  const exp = iat + sessionTtl;
+
+  return signEmbedToken(
+    {
+      aud: 'notion_embed_session',
+      exp,
+      iat,
+      jti: crypto.randomUUID(),
+      scope: linkClaims.scope,
+      sub: linkClaims.sub
+    },
+    EMBED_SESSION_SECRET
+  );
+};
+
+type EmbedBootstrapState = {
+  accessToken?: string;
+  error?: string;
+};
+
+const buildEmbedBootstrapState = (req: express.Request): EmbedBootstrapState => {
+  const linkToken = String(req.query?.token || '').trim();
+  if (!linkToken) {
+    return { error: 'Missing token query parameter.' };
+  }
+
+  try {
+    return { accessToken: createEmbedSessionAccessToken(linkToken) };
+  } catch (error: any) {
+    return { error: error?.message || 'Failed to create embed session.' };
+  }
+};
+
 const requireEmbedScope =
   (requiredScope: string) => (req: express.Request, res: express.Response, next: express.NextFunction) => {
     try {
@@ -368,10 +413,10 @@ const handleSync = async (body: any, res: express.Response) => {
   return res.json(data);
 };
 
-const buildEmbedBootstrapScript = (assetScriptPath: string) => `<script type="module">
+const buildEmbedBootstrapScript = (assetScriptPath: string, bootstrapState: EmbedBootstrapState) => `<script type="module">
 (() => {
-  const params = new URLSearchParams(window.location.search);
-  const linkToken = params.get('token');
+  const bootstrapError = ${JSON.stringify(bootstrapState.error || '')};
+  const accessToken = ${JSON.stringify(bootstrapState.accessToken || '')};
   const root = document.getElementById('root');
   if (root) {
     root.innerHTML = '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font:14px system-ui;background:#f8fafc;color:#475569;">Loading embedded app...</div>';
@@ -380,22 +425,12 @@ const buildEmbedBootstrapScript = (assetScriptPath: string) => `<script type="mo
     document.body.innerHTML = '<pre style="padding:16px;color:#b91c1c;font:14px system-ui;white-space:pre-wrap;">' + String(message) + '</pre>';
   };
 
-  if (!linkToken) {
-    renderFatal('Missing token query parameter.');
+  if (bootstrapError) {
+    renderFatal(bootstrapError);
     return;
   }
 
-  const sessionPromise = fetch('/embed/session', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token: linkToken })
-  }).then(async (response) => {
-    const data = await response.json();
-    if (!response.ok || !data.accessToken) {
-      throw new Error(data.error || 'Failed to create embed session.');
-    }
-    return data.accessToken;
-  });
+  const sessionPromise = Promise.resolve(accessToken);
 
   window.__EMBED_MODE__ = true;
   window.__EMBED_SESSION__ = sessionPromise;
@@ -448,7 +483,8 @@ const shouldServeLiteEmbedApp = (req: express.Request): boolean => {
   return true;
 };
 
-const renderEmbeddedLiteApp = (res: express.Response) => {
+const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
+  const bootstrapState = buildEmbedBootstrapState(req);
   res.setHeader('Cache-Control', 'no-store');
   return res.type('html').send(`<!doctype html>
 <html lang="en">
@@ -665,8 +701,7 @@ const renderEmbeddedLiteApp = (res: express.Response) => {
 
     <script>
       (function () {
-        const params = new URLSearchParams(window.location.search);
-        const linkToken = params.get('token');
+        const bootstrapError = ${JSON.stringify(bootstrapState.error || '')};
         const statusEl = document.getElementById('status');
         const errorEl = document.getElementById('error');
         const fileInputEl = document.getElementById('file-input');
@@ -679,7 +714,7 @@ const renderEmbeddedLiteApp = (res: express.Response) => {
         const logEl = document.getElementById('log');
 
         const state = {
-          accessToken: '',
+          accessToken: ${JSON.stringify(bootstrapState.accessToken || '')},
           selectedFile: '',
           selectedCalendarId: '',
           products: [],
@@ -829,22 +864,14 @@ const renderEmbeddedLiteApp = (res: express.Response) => {
 
         const initialize = async () => {
           try {
-            if (!linkToken) {
-              throw new Error('Missing token query parameter.');
+            if (bootstrapError) {
+              throw new Error(bootstrapError);
             }
 
-            setStatus('Creating session…');
-            const sessionResponse = await fetch('/embed/session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ token: linkToken })
-            });
-            const sessionData = await sessionResponse.json();
-            if (!sessionResponse.ok || !sessionData.accessToken) {
-              throw new Error((sessionData && sessionData.error) || 'Failed to create embed session.');
+            if (!state.accessToken) {
+              throw new Error('Missing embed access token.');
             }
 
-            state.accessToken = sessionData.accessToken;
             await loadCalendar();
           } catch (error) {
             setError(error && error.message ? error.message : error);
@@ -922,7 +949,8 @@ const renderEmbeddedLiteApp = (res: express.Response) => {
 </html>`);
 };
 
-const renderEmbeddedDistApp = (res: express.Response) => {
+const renderEmbeddedDistApp = (req: express.Request, res: express.Response) => {
+  const bootstrapState = buildEmbedBootstrapState(req);
   if (!fs.existsSync(distIndexPath)) {
     return res.status(500).send('dist/index.html not found. Run npm run build first.');
   }
@@ -935,7 +963,7 @@ const renderEmbeddedDistApp = (res: express.Response) => {
 
   const assetScriptPath = scriptMatch[1];
   const withoutModuleScript = rawHtml.replace(scriptMatch[0], '');
-  const bootstrap = buildEmbedBootstrapScript(assetScriptPath);
+  const bootstrap = buildEmbedBootstrapScript(assetScriptPath, bootstrapState);
   const html = withoutModuleScript.includes('</body>')
     ? withoutModuleScript.replace('</body>', `${bootstrap}\n</body>`)
     : `${withoutModuleScript}\n${bootstrap}`;
@@ -979,7 +1007,8 @@ app.get(
 }
 );
 
-app.get(['/embed', '/embed/'], (_req, res) => {
+app.get(['/embed', '/embed/'], (req, res) => {
+  const bootstrapState = buildEmbedBootstrapState(req);
   res.setHeader('Cache-Control', 'no-store');
   res.type('html').send(`<!doctype html>
 <html lang="en">
@@ -1005,6 +1034,8 @@ app.get(['/embed', '/embed/'], (_req, res) => {
     <script>
       const statusEl = document.getElementById('status');
       const outputEl = document.getElementById('output');
+      const bootstrapError = ${JSON.stringify(bootstrapState.error || '')};
+      const accessToken = ${JSON.stringify(bootstrapState.accessToken || '')};
       const setStatus = (text, isError = false) => {
         statusEl.textContent = text;
         statusEl.className = isError ? 'err' : 'muted';
@@ -1012,24 +1043,16 @@ app.get(['/embed', '/embed/'], (_req, res) => {
 
       (async () => {
         try {
-          const params = new URLSearchParams(window.location.search);
-          const linkToken = params.get('token');
-          if (!linkToken) throw new Error('Missing token query parameter.');
-
-          setStatus('Exchanging token...');
-          const sessionResp = await fetch('/embed/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: linkToken })
-          });
-          const sessionData = await sessionResp.json();
-          if (!sessionResp.ok || !sessionData.accessToken) {
-            throw new Error(sessionData.error || 'Failed to create embed session.');
+          if (bootstrapError) {
+            throw new Error(bootstrapError);
+          }
+          if (!accessToken) {
+            throw new Error('Missing embed access token.');
           }
 
           setStatus('Loading calendar data...');
           const dataResp = await fetch('/embed-api/calendar', {
-            headers: { Authorization: 'Bearer ' + sessionData.accessToken }
+            headers: { Authorization: 'Bearer ' + accessToken }
           });
           const data = await dataResp.json();
           if (!dataResp.ok) throw new Error(data.error || 'Failed to load calendar.');
@@ -1103,9 +1126,9 @@ app.post(
 
 app.get(['/embed-app', '/embed-app/', '/embed-app/*'], (req, res) => {
   if (shouldServeLiteEmbedApp(req)) {
-    return renderEmbeddedLiteApp(res);
+    return renderEmbeddedLiteApp(req, res);
   }
-  return renderEmbeddedDistApp(res);
+  return renderEmbeddedDistApp(req, res);
 });
 
 // Serve frontend in production
