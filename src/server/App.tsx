@@ -3,30 +3,27 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  LayoutDashboard, 
-  Settings, 
-  Calendar, 
-  FileSpreadsheet, 
-  Play, 
-  CheckCircle2, 
-  AlertCircle, 
-  Terminal, 
-  Sun, 
-  Moon, 
-  ChevronRight, 
-  Menu, 
-  X, 
-  Upload, 
-  RefreshCw, 
-  Database,
-  Search,
+import React, {useDeferredValue, useEffect, useRef, useState} from 'react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Calendar,
   Check,
-  MoreVertical,
-  ArrowRight
+  ChevronRight,
+  Database,
+  FileSpreadsheet,
+  LayoutDashboard,
+  Menu,
+  Moon,
+  Play,
+  RefreshCw,
+  Search,
+  Settings,
+  Sun,
+  Upload,
+  X,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import {AnimatePresence, motion} from 'motion/react';
 
 declare global {
   interface Window {
@@ -35,9 +32,14 @@ declare global {
   }
 }
 
-// --- Types ---
-type View = 'dashboard' | 'workflow-manager' | 'daily-generator' | 'settings';
+type View = 'home' | 'workflow-manager' | 'daily-generator' | 'settings';
 type Theme = 'light' | 'dark';
+type StepState = 'complete' | 'current' | 'upcoming';
+type WorkflowStep = {
+  label: string;
+  detail: string;
+  state: StepState;
+};
 type DownloadArtifact = {
   filename: string;
   url: string;
@@ -68,6 +70,13 @@ interface LogEntry {
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
+const VIEW_LABELS: Record<View, string> = {
+  home: 'Home',
+  'workflow-manager': 'Workflow',
+  'daily-generator': 'Daily Generator',
+  settings: 'Settings',
+};
+
 const isAppleMobileDevice = (): boolean => {
   if (typeof navigator === 'undefined') return false;
   const ua = navigator.userAgent || '';
@@ -85,6 +94,7 @@ const createDownloadArtifact = (base64: string, filename: string): DownloadArtif
   for (let i = 0; i < binaryStr.length; i++) {
     bytes[i] = binaryStr.charCodeAt(i);
   }
+
   const blob = new Blob([bytes], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
@@ -105,20 +115,19 @@ const triggerDownload = ({filename, url}: DownloadArtifact) => {
   document.body.removeChild(anchor);
 };
 
-// --- Mock Data ---
 const MOCK_CALENDAR_PAGES: CalendarPage[] = [
-  { id: '1', title: '3/21 Painting Plan', date: '2026-03-21' },
-  { id: '2', title: '3/22 Painting Plan', date: '2026-03-22' },
-  { id: '3', title: '3/23 Painting Plan', date: '2026-03-23' },
-  { id: '4', title: '3/24 Painting Plan', date: '2026-03-24' },
+  {id: '1', title: '3/21 Painting Plan', date: '2026-03-21'},
+  {id: '2', title: '3/22 Painting Plan', date: '2026-03-22'},
+  {id: '3', title: '3/23 Painting Plan', date: '2026-03-23'},
+  {id: '4', title: '3/24 Painting Plan', date: '2026-03-24'},
 ];
 
 const MOCK_PRODUCTS: Product[] = [
-  { id: 'p1', trial: '試作01', part: 'N93-3F Front Panel', color: '3F黒', qty: 120, ct: 45, date: '03/21', selected: false, override: false, colorAccent: false },
-  { id: 'p2', trial: '', part: 'N93-3F Side Bracket', color: '3F黒', qty: 240, ct: 30, date: '03/21', selected: true, override: false, colorAccent: false },
-  { id: 'p3', trial: '試作02', part: 'M12-Silver Frame', color: 'Silver', qty: 50, ct: 120, date: '03/21', selected: false, override: false, colorAccent: false },
-  { id: 'p4', trial: '', part: 'M12-Silver Cover', color: 'Silver', qty: 50, ct: 80, date: '03/21', selected: false, override: false, colorAccent: false },
-  { id: 'p5', trial: '', part: 'X9-Emerald Case', color: 'Emerald', qty: 10, ct: 300, date: '03/21', selected: true, override: true, colorAccent: true },
+  {id: 'p1', trial: '試作01', part: 'N93-3F Front Panel', color: '3F黒', qty: 120, ct: 45, date: '03/21', selected: false, override: false, colorAccent: false},
+  {id: 'p2', trial: '', part: 'N93-3F Side Bracket', color: '3F黒', qty: 240, ct: 30, date: '03/21', selected: true, override: false, colorAccent: false},
+  {id: 'p3', trial: '試作02', part: 'M12-Silver Frame', color: 'Silver', qty: 50, ct: 120, date: '03/21', selected: false, override: false, colorAccent: false},
+  {id: 'p4', trial: '', part: 'M12-Silver Cover', color: 'Silver', qty: 50, ct: 80, date: '03/21', selected: false, override: false, colorAccent: false},
+  {id: 'p5', trial: '', part: 'X9-Emerald Case', color: 'Emerald', qty: 10, ct: 300, date: '03/21', selected: true, override: true, colorAccent: true},
 ];
 
 const apiFetch = async (path: string, init?: RequestInit) => {
@@ -141,124 +150,201 @@ const apiFetch = async (path: string, init?: RequestInit) => {
   });
 };
 
-// --- Components ---
-
-const SidebarItem = ({ 
-  icon: Icon, 
-  label, 
-  active, 
-  onClick 
-}: { 
-  icon: any, 
-  label: string, 
-  active: boolean, 
-  onClick: () => void 
+const Panel = ({
+  children,
+  className = '',
+  strong = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  strong?: boolean;
 }) => (
-  <button
-    onClick={onClick}
-    className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${
-      active 
-        ? 'bg-slate-200 dark:bg-slate-800 text-slate-900 dark:text-slate-100' 
-        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
-    }`}
-  >
-    <Icon size={18} />
-    <span>{label}</span>
-  </button>
-);
-
-const Card = ({ children, className = "", onClick }: { children: React.ReactNode, className?: string, onClick?: () => void }) => (
-  <div 
-    onClick={onClick}
-    className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden ${className} ${onClick ? 'cursor-pointer' : ''}`}
-  >
+  <div className={`overflow-hidden rounded-[28px] ${strong ? 'app-panel-strong' : 'app-panel'} ${className}`}>
     {children}
   </div>
 );
 
-const Badge = ({ children, variant = 'default' }: { children: React.ReactNode, variant?: 'default' | 'success' | 'warning' | 'error' | 'indigo' }) => {
-  const variants = {
-    default: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
-    success: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    warning: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    error: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400',
-    indigo: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
-  };
+const NavItem = ({
+  icon: Icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: any;
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) => (
+  <button
+    onClick={onClick}
+    className={`flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3 text-left text-sm transition-all ${
+      active
+        ? 'bg-slate-900 text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-900'
+        : 'text-[var(--text-secondary)] hover:bg-white/70 dark:hover:bg-white/8'
+    }`}
+  >
+    <Icon size={18} />
+    <span className="font-medium">{label}</span>
+  </button>
+);
+
+const RowToggle = ({
+  label,
+  active,
+  tone,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  tone: 'success' | 'warning';
+  onClick: () => void;
+}) => {
+  const activeClasses =
+    tone === 'success'
+      ? 'bg-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.28)]'
+      : 'bg-amber-500 text-white shadow-[0_12px_24px_rgba(245,158,11,0.24)]';
+  const idleClasses =
+    tone === 'success'
+      ? 'bg-white/80 text-[var(--text-secondary)] hover:bg-emerald-50 hover:text-emerald-700 dark:bg-white/6 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-200'
+      : 'bg-white/80 text-[var(--text-secondary)] hover:bg-amber-50 hover:text-amber-700 dark:bg-white/6 dark:hover:bg-amber-950/30 dark:hover:text-amber-200';
+
   return (
-    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${variants[variant]}`}>
-      {children}
-    </span>
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${active ? activeClasses : idleClasses}`}
+    >
+      {active && <Check size={12} />}
+      {label}
+    </button>
   );
 };
+
+const ActivityDrawer = ({
+  open,
+  onClose,
+  logs,
+  status,
+  isSyncing,
+}: {
+  open: boolean;
+  onClose: () => void;
+  logs: LogEntry[];
+  status: string;
+  isSyncing: boolean;
+}) => (
+  <AnimatePresence>
+    {open && (
+      <>
+        <motion.button
+          aria-label="Close activity panel"
+          className="fixed inset-0 z-40 bg-slate-950/16 backdrop-blur-[2px]"
+          initial={{opacity: 0}}
+          animate={{opacity: 1}}
+          exit={{opacity: 0}}
+          onClick={onClose}
+        />
+        <motion.aside
+          initial={{opacity: 0, x: 28}}
+          animate={{opacity: 1, x: 0}}
+          exit={{opacity: 0, x: 28}}
+          transition={{duration: 0.18}}
+          className="fixed inset-y-4 right-4 z-50 w-[min(380px,calc(100vw-2rem))]"
+        >
+          <div className="app-panel-strong flex h-full flex-col rounded-[30px] p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">Activity</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em]">Recent updates</h2>
+              </div>
+              <button onClick={onClose} className="icon-button" aria-label="Close">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-[22px] border border-[color:var(--line)] bg-white/60 px-4 py-3 dark:bg-white/6">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <span className={`h-2.5 w-2.5 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <span>{status}</span>
+              </div>
+            </div>
+
+            <div className="soft-scroll mt-5 flex-1 space-y-3 overflow-y-auto pr-1">
+              {logs.length === 0 ? (
+                <div className="rounded-[22px] border border-dashed border-[color:var(--line)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+                  No recent activity.
+                </div>
+              ) : (
+                [...logs].reverse().map((log, index) => (
+                  <div key={`${log.timestamp}-${index}`} className="rounded-[22px] border border-[color:var(--line)] bg-white/50 px-4 py-4 dark:bg-white/4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            log.type === 'success'
+                              ? 'bg-emerald-500'
+                              : log.type === 'error'
+                                ? 'bg-rose-500'
+                                : log.type === 'warning'
+                                  ? 'bg-amber-500'
+                                  : 'bg-slate-400'
+                          }`}
+                        />
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{log.message}</p>
+                      </div>
+                      <span className="shrink-0 text-xs text-[var(--text-tertiary)]">{log.timestamp}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </motion.aside>
+      </>
+    )}
+  </AnimatePresence>
+);
 
 export default function App() {
   const embedMode = isEmbeddedMode();
   const iosDevice = isAppleMobileDevice();
   const canUseNativeFilePicker = supportsNativeFilePicker() && (!embedMode || !iosDevice);
   const shouldAutoDownload = !embedMode && !iosDevice;
-  const [view, setView] = useState<View>(embedMode ? 'workflow-manager' : 'dashboard');
+
+  const [view, setView] = useState<View>(embedMode ? 'workflow-manager' : 'home');
   const [theme, setTheme] = useState<Theme>('light');
-  const [sidebarOpen, setSidebarOpen] = useState(() => !embedMode);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (embedMode || typeof window === 'undefined') return false;
+    return window.innerWidth >= 1024;
+  });
+  const [activityOpen, setActivityOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([
     {
       timestamp: '06:31:23',
       message: embedMode ? 'Embed share view initialized.' : 'Application initialized.',
-      type: 'info'
+      type: 'info',
     },
-    { timestamp: '06:31:25', message: 'Connected to Notion API.', type: 'success' },
+    {timestamp: '06:31:25', message: 'Connected to Notion API.', type: 'success'},
   ]);
-  const [status, setStatus] = useState('Ready.');
+  const [status, setStatus] = useState('Ready');
   const [progress, setProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
-  
-  // Workflow Manager State
+
   const [selectedCalendar, setSelectedCalendar] = useState<CalendarPage | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileHandle, setFileHandle] = useState<any>(null);
   const [downloadArtifact, setDownloadArtifact] = useState<DownloadArtifact | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [calendarPages, setCalendarPages] = useState<CalendarPage[]>([]);
+  const [dailyCalendar, setDailyCalendar] = useState<CalendarPage | null>(null);
+  const [reviewQuery, setReviewQuery] = useState('');
+
+  const deferredReviewQuery = useDeferredValue(reviewQuery);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement> | null, manualFile?: File) => {
-    const file = manualFile || (e?.target as HTMLInputElement)?.files?.[0];
-    if (!file) return;
-
-    if (!manualFile) {
-      setFileHandle(null);
-    }
-    
-    setIsSyncing(true);
-    setStatus('Uploading file...');
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    
-    try {
-      const response = await apiFetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) throw new Error('Upload failed');
-      
-      const data = await response.json();
-      setSelectedFile(data.filename);
-      addLog(`File uploaded: ${data.filename}`, 'success');
-      setStatus(`File ${data.filename} ready.`);
-    } catch (error) {
-      addLog('Upload error: ' + error, 'error');
-      setStatus('Upload failed.');
-    } finally {
-      setIsSyncing(false);
-    }
+  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
+    const timestamp = new Date().toLocaleTimeString('en-GB', {hour12: false});
+    setLogs((prev) => [...prev, {timestamp, message, type}]);
   };
-
-  useEffect(() => {
-    return () => {
-      if (downloadArtifact) {
-        URL.revokeObjectURL(downloadArtifact.url);
-      }
-    };
-  }, [downloadArtifact]);
 
   const replaceDownloadArtifact = (nextArtifact: DownloadArtifact | null) => {
     setDownloadArtifact((currentArtifact) => {
@@ -277,14 +363,48 @@ export default function App() {
         replaceDownloadArtifact(null);
         triggerDownload(artifact);
         window.setTimeout(() => URL.revokeObjectURL(artifact.url), 1000);
-        addLog('Download triggered: ' + filename, 'success');
+        addLog(`Download triggered: ${filename}`, 'success');
         return;
       }
 
       replaceDownloadArtifact(artifact);
-      addLog('Processed file is ready. Use the download button below to open it.', 'success');
-    } catch (e: any) {
-      addLog('Error creating download link: ' + e.message, 'error');
+      addLog('Processed workbook ready for download.', 'success');
+    } catch (error: any) {
+      addLog(`Error creating download link: ${error.message}`, 'error');
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement> | null, manualFile?: File) => {
+    const file = manualFile || (event?.target as HTMLInputElement)?.files?.[0];
+    if (!file) return;
+
+    if (!manualFile) {
+      setFileHandle(null);
+    }
+
+    setIsSyncing(true);
+    setStatus('Uploading workbook');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await apiFetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Upload failed');
+
+      const data = await response.json();
+      setSelectedFile(data.filename);
+      addLog(`Workbook uploaded: ${data.filename}`, 'success');
+      setStatus('Workbook ready');
+    } catch (error) {
+      addLog(`Upload error: ${error}`, 'error');
+      setStatus('Upload failed');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -292,32 +412,42 @@ export default function App() {
     if (canUseNativeFilePicker) {
       try {
         const [handle] = await (window as any).showOpenFilePicker({
-          types: [{
-            description: 'Excel Files',
-            accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }
-          }],
-          multiple: false
+          types: [
+            {
+              description: 'Excel Files',
+              accept: {'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']},
+            },
+          ],
+          multiple: false,
         });
         const file = await handle.getFile();
         setFileHandle(handle);
-        addLog('Direct file access enabled for: ' + file.name, 'success');
+        addLog(`Direct file access enabled for ${file.name}`, 'success');
         handleFileChange(null, file);
-      } catch (err: any) {
-        if (err.name !== 'AbortError') {
-          addLog('File picker error: ' + err.message + '. Falling back...', 'warning');
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          addLog(`File picker error: ${error.message}. Falling back.`, 'warning');
           fileInputRef.current?.click();
         }
       }
-    } else {
-      setFileHandle(null);
-      addLog('Using the standard file picker for compatibility with embedded and mobile browsers.', 'info');
-      fileInputRef.current?.click();
+      return;
     }
-  };
-  const [products, setProducts] = useState<Product[]>([]);
-  const [calendarPages, setCalendarPages] = useState<CalendarPage[]>([]);
 
-  // Load calendar pages on mount
+    setFileHandle(null);
+    addLog('Using the standard file picker for compatibility.', 'info');
+    fileInputRef.current?.click();
+  };
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   useEffect(() => {
     const loadCalendar = async () => {
       try {
@@ -329,93 +459,82 @@ export default function App() {
         const data = await response.json();
         setCalendarPages(data);
       } catch (error) {
-        addLog('Error loading calendar pages: ' + error, 'error');
-        // Fallback to mock data for demonstration
+        addLog(`Error loading calendar pages: ${error}`, 'error');
         setCalendarPages(MOCK_CALENDAR_PAGES);
       }
     };
+
     loadCalendar();
   }, []);
 
-  // Load products when file is selected
   useEffect(() => {
-    if (selectedFile) {
-      const loadProducts = async () => {
-        setIsSyncing(true);
-        setStatus('Loading products from Excel...');
-        try {
-          const response = await apiFetch('/api/load-products', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: selectedFile }) 
-          });
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to load products');
-          }
-          const data = await response.json();
-          setProducts(data);
-          setStatus('Products loaded.');
-          addLog(`Loaded ${data.length} products from ${selectedFile}`, 'success');
-        } catch (error) {
-          addLog('Error loading products: ' + error, 'error');
-          setStatus('Error loading products (using mock data).');
-          // Fallback to mock data
-          setProducts(MOCK_PRODUCTS);
-        } finally {
-          setIsSyncing(false);
+    return () => {
+      if (downloadArtifact) {
+        URL.revokeObjectURL(downloadArtifact.url);
+      }
+    };
+  }, [downloadArtifact]);
+
+  useEffect(() => {
+    if (!selectedFile) return;
+
+    const loadProducts = async () => {
+      setIsSyncing(true);
+      setStatus('Loading workbook');
+      try {
+        const response = await apiFetch('/api/load-products', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({filePath: selectedFile}),
+        });
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to load products');
         }
-      };
-      loadProducts();
-    }
+        const data = await response.json();
+        setProducts(data);
+        setStatus('Review ready');
+        addLog(`Loaded ${data.length} products from ${selectedFile}`, 'success');
+      } catch (error) {
+        addLog(`Error loading products: ${error}`, 'error');
+        setStatus('Review loaded with sample data');
+        setProducts(MOCK_PRODUCTS);
+      } finally {
+        setIsSyncing(false);
+      }
+    };
+
+    loadProducts();
   }, [selectedFile]);
-
-  // Daily Generator State
-  const [dailyCalendar, setDailyCalendar] = useState<CalendarPage | null>(null);
-
-  useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
-
-  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
-    const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
-    setLogs(prev => [...prev, { timestamp, message, type }]);
-  };
-
-  const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
   const handleSync = async () => {
     if (!selectedCalendar || !selectedFile) return;
+
     setIsSyncing(true);
-    setStatus('Syncing with Notion...');
-    addLog(`Starting sync for ${selectedCalendar.title}...`, 'info');
-    
+    setStatus('Syncing to Notion');
+    addLog(`Starting sync for ${selectedCalendar.title}`, 'info');
+
     try {
       const response = await apiFetch('/api/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
           file_path: selectedFile,
           page_id: selectedCalendar.id,
-          products: products
-        })
+          products,
+        }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Sync failed');
       }
+
       const data = await response.json();
-      
       if (data.error) throw new Error(data.error);
 
-      // Desktop browsers can write back to the original file handle.
       if (fileHandle && data.buffer && canUseNativeFilePicker) {
         try {
-          addLog('Found file handle. Attempting direct write-back...', 'info');
+          addLog('Writing back to the original workbook.', 'info');
           const writable = await fileHandle.createWritable();
           const binaryStr = atob(data.buffer);
           const bytes = new Uint8Array(binaryStr.length);
@@ -424,34 +543,30 @@ export default function App() {
           }
           await writable.write(bytes);
           await writable.close();
-          addLog('✅ Original file updated in-place!', 'success');
-        } catch (err: any) {
-          addLog('Error writing directly to file: ' + err.message, 'error');
-          // Fallback to manual download
+          addLog('Original workbook updated in place.', 'success');
+        } catch (error: any) {
+          addLog(`Direct write error: ${error.message}`, 'error');
           downloadBuffer(data.buffer, selectedFile || 'updated_plan.xlsx');
         }
       } else if (data.buffer) {
-        addLog('Preparing processed workbook for download...', 'info');
         downloadBuffer(data.buffer, selectedFile || 'updated_plan.xlsx');
       }
 
-      setStatus('✅ Sync complete');
+      setStatus('Sync complete');
       addLog('Notion sync completed successfully.', 'success');
-      
-      // Refresh products after sync
-      const refreshResp = await apiFetch('/api/load-products', {
+
+      const refreshResponse = await apiFetch('/api/load-products', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: selectedFile })
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({filePath: selectedFile}),
       });
-      if (refreshResp.ok) {
-        const refreshedData = await refreshResp.json();
+      if (refreshResponse.ok) {
+        const refreshedData = await refreshResponse.json();
         setProducts(refreshedData);
       }
-
     } catch (error) {
-      addLog('Sync error: ' + error, 'error');
-      setStatus('❌ Sync failed');
+      addLog(`Sync error: ${error}`, 'error');
+      setStatus('Sync failed');
     } finally {
       setIsSyncing(false);
       setProgress(0);
@@ -460,879 +575,827 @@ export default function App() {
 
   const handleDailyRun = () => {
     if (!dailyCalendar) return;
+
     setIsSyncing(true);
-    setStatus('Daily Generator running...');
-    addLog(`Generating daily workflow for ${dailyCalendar.date}...`, 'info');
-    
-    let p = 0;
+    setStatus('Running generator');
+    addLog(`Generating workflow for ${dailyCalendar.date}`, 'info');
+
+    let nextProgress = 0;
     const interval = setInterval(() => {
-      p += 5;
-      setProgress(p);
-      if (p >= 100) {
+      nextProgress += 5;
+      setProgress(nextProgress);
+      if (nextProgress >= 100) {
         clearInterval(interval);
         setIsSyncing(false);
         setProgress(0);
-        setStatus('✅ Daily Generator complete');
+        setStatus('Daily run complete');
         addLog('Daily workflow generated and synced to Notion.', 'success');
       }
     }, 100);
   };
 
-  // --- Views ---
+  const selectedCount = products.filter((product) => product.selected).length;
+  const recentLogs = logs.slice(-3).reverse();
+  const normalizedQuery = deferredReviewQuery.trim().toLowerCase();
+  const filteredProducts = normalizedQuery
+    ? products.filter((product) =>
+        [product.part, product.color, product.trial, product.date].some((field) =>
+          field.toLowerCase().includes(normalizedQuery),
+        ),
+      )
+    : products;
+  const productGroups = filteredProducts.reduce<Record<string, Product[]>>((groups, product) => {
+    if (!groups[product.color]) {
+      groups[product.color] = [];
+    }
+    groups[product.color].push(product);
+    return groups;
+  }, {});
+  const groupedProducts = Object.entries(productGroups) as Array<[string, Product[]]>;
+
+  const workflowSteps: WorkflowStep[] = [
+    {
+      label: 'Choose page',
+      detail: selectedCalendar ? selectedCalendar.title : 'Pick a Notion page',
+      state: (selectedCalendar ? 'complete' : 'current') as StepState,
+    },
+    {
+      label: 'Upload file',
+      detail: selectedFile ?? 'Add the workbook',
+      state: (selectedFile ? 'complete' : selectedCalendar ? 'current' : 'upcoming') as StepState,
+    },
+    {
+      label: 'Review',
+      detail: products.length ? `${selectedCount} items selected` : 'Check the rows',
+      state: (selectedFile ? 'current' : 'upcoming') as StepState,
+    },
+    {
+      label: 'Sync',
+      detail: selectedCalendar && selectedFile ? 'Ready when you are' : 'Waiting for setup',
+      state: (selectedCalendar && selectedFile ? 'current' : 'upcoming') as StepState,
+    },
+  ];
 
   const HomeView = () => (
-    <div className="space-y-12 pb-12">
-      <header className="max-w-3xl">
-        <motion.div 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold uppercase tracking-wider mb-4"
-        >
-          <LayoutDashboard size={14} />
-          Application Hub
-        </motion.div>
-        <h1 className="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
-          Centralized Tools for the <span className="text-indigo-600 dark:text-indigo-400">Painting Team</span>
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-4 text-lg leading-relaxed">
-          Access all your workflow automation and management tools from one place. 
-          Streamline your Notion integration and Excel processing.
-        </p>
-      </header>
-
-      <section>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Menu size={20} className="text-indigo-500" />
-            Available Applications
-          </h2>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Workflow Manager App */}
-          <motion.div whileHover={{ y: -5 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Card 
-              onClick={() => setView('workflow-manager')}
-              className="p-6 h-full flex flex-col hover:border-indigo-500/50 hover:shadow-xl hover:shadow-indigo-500/10 transition-all group border-2"
-            >
-              <div className="bg-indigo-100 dark:bg-indigo-900/30 w-14 h-14 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-6 group-hover:scale-110 transition-transform">
-                <RefreshCw size={28} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Workflow Manager</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed flex-1">
-                Manual synchronization between Excel painting plans and Notion. 
-                Review every part, select specific items, and sync with precision.
-              </p>
-              <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <Badge variant="indigo">v2.1.0</Badge>
-                <span className="text-indigo-600 dark:text-indigo-400 text-sm font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
-                  Launch App <ArrowRight size={16} />
-                </span>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Daily Generator App */}
-          <motion.div whileHover={{ y: -5 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Card 
-              onClick={() => setView('daily-generator')}
-              className="p-6 h-full flex flex-col hover:border-emerald-500/50 hover:shadow-xl hover:shadow-emerald-500/10 transition-all group border-2"
-            >
-              <div className="bg-emerald-100 dark:bg-emerald-900/30 w-14 h-14 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 mb-6 group-hover:scale-110 transition-transform">
-                <Play size={28} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Daily Generator</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed flex-1">
-                Fully automated daily plan generation. Scans Excel files for the target date, 
-                groups by color, and populates Notion automatically.
-              </p>
-              <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <Badge variant="success">v1.4.5</Badge>
-                <span className="text-emerald-600 dark:text-emerald-400 text-sm font-bold flex items-center gap-1 group-hover:gap-2 transition-all">
-                  Launch App <ArrowRight size={16} />
-                </span>
-              </div>
-            </Card>
-          </motion.div>
-
-          {/* Future App Placeholder 1 */}
-          <Card className="p-6 h-full flex flex-col border-dashed border-2 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 opacity-60">
-            <div className="bg-slate-100 dark:bg-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center text-slate-400 mb-6">
-              <Database size={28} />
-            </div>
-            <h3 className="text-xl font-bold text-slate-400 dark:text-slate-600 mb-2">Inventory Tracker</h3>
-            <p className="text-slate-400 dark:text-slate-600 text-sm leading-relaxed flex-1">
-              Real-time paint and materials inventory management. Integrated with Notion databases.
+    <div className="space-y-8 pb-16">
+      <Panel strong className="relative p-8 md:p-12 lg:p-14">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.7),transparent_38%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(148,163,184,0.08),transparent_40%)]" />
+        <div className="relative max-w-3xl space-y-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] shadow-sm dark:border-white/10 dark:bg-white/6">
+            <LayoutDashboard size={14} />
+            Painting Team
+          </div>
+          <div className="space-y-4">
+            <h1 className="max-w-2xl text-4xl font-semibold tracking-[-0.06em] text-[var(--text-primary)] md:text-6xl">
+              Quiet control for the daily plan.
+            </h1>
+            <p className="max-w-xl text-base text-[var(--text-secondary)] md:text-lg">
+              Review the workbook, keep only the context that matters, and sync to Notion without the dashboard noise.
             </p>
-            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Coming Soon</span>
-            </div>
-          </Card>
+          </div>
 
-          {/* Future App Placeholder 2 */}
-          <Card className="p-6 h-full flex flex-col border-dashed border-2 border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20 opacity-60">
-            <div className="bg-slate-100 dark:bg-slate-800 w-14 h-14 rounded-2xl flex items-center justify-center text-slate-400 mb-6">
-              <Settings size={28} />
-            </div>
-            <h3 className="text-xl font-bold text-slate-400 dark:text-slate-600 mb-2">Quality Control</h3>
-            <p className="text-slate-400 dark:text-slate-600 text-sm leading-relaxed flex-1">
-              Digital QC checklists and inspection logs for finished parts.
-            </p>
-            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Coming Soon</span>
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <Card className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Terminal size={18} className="text-indigo-500" />
-                System Activity
-              </h3>
-              <button className="text-xs text-indigo-500 font-medium hover:underline" onClick={() => {
-                const console = document.getElementById('log-console');
-                if (console) console.classList.toggle('hidden');
-              }}>Open Console</button>
-            </div>
-            <div className="space-y-4">
-              {logs.slice(-4).reverse().map((log, i) => (
-                <div key={i} className="flex items-start gap-3 text-sm">
-                  <div className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
-                    log.type === 'success' ? 'bg-emerald-500' : 
-                    log.type === 'error' ? 'bg-rose-500' : 
-                    log.type === 'warning' ? 'bg-amber-500' : 
-                    'bg-slate-400'
-                  }`} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-slate-700 dark:text-slate-300 leading-tight">{log.message}</p>
-                    <p className="text-[10px] text-slate-400 mt-1">{log.timestamp}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-
-        <div>
-          <Card className="p-6 bg-indigo-600 text-white border-none">
-            <h3 className="font-bold text-lg mb-2">Need Help?</h3>
-            <p className="text-indigo-100 text-sm mb-6 leading-relaxed">
-              Check the documentation for detailed instructions on how to use the Workflow Manager and Daily Generator.
-            </p>
-            <button className="w-full py-2 bg-white text-indigo-600 rounded-lg font-bold text-sm hover:bg-indigo-50 transition-colors">
-              Read Documentation
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => setView('workflow-manager')} className="primary-button">
+              Start workflow
+              <ArrowRight size={18} />
             </button>
-          </Card>
+            <button onClick={() => setView('daily-generator')} className="secondary-button">
+              Daily generator
+            </button>
+            <button onClick={() => setActivityOpen(true)} className="secondary-button">
+              Recent activity
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-3 pt-2">
+            <div className="status-pill">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Notion connected
+            </div>
+            <div className="status-pill">
+              <Calendar size={14} />
+              {selectedCalendar ? selectedCalendar.title : 'No page selected'}
+            </div>
+            <div className="status-pill">
+              <FileSpreadsheet size={14} />
+              {selectedFile ?? 'No workbook selected'}
+            </div>
+          </div>
         </div>
+      </Panel>
+
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <Panel className="p-6 md:p-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Continue</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Workflow manager</h2>
+              <p className="mt-2 max-w-md text-sm text-[var(--text-secondary)]">
+                Pick up the current sync with one page, one workbook, and one clear next step.
+              </p>
+            </div>
+            <button onClick={() => setView('workflow-manager')} className="secondary-button">
+              {selectedCalendar || selectedFile ? 'Resume' : 'Open'}
+            </button>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Page</p>
+              <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
+                {selectedCalendar?.title ?? 'Choose a page'}
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Workbook</p>
+              <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
+                {selectedFile ?? 'Choose a file'}
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Ready</p>
+              <p className="mt-3 text-base font-medium text-[var(--text-primary)]">{selectedCount} selected rows</p>
+            </div>
+          </div>
+        </Panel>
+
+        <Panel className="p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Recent</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Latest updates</h2>
+            </div>
+            <button onClick={() => setActivityOpen(true)} className="secondary-button">
+              Open
+            </button>
+          </div>
+
+          {downloadArtifact && (
+            <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-5 dark:border-emerald-900/60 dark:bg-emerald-950/25">
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-200">Processed workbook ready</p>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">{downloadArtifact.filename}</p>
+              <a
+                href={downloadArtifact.url}
+                download={downloadArtifact.filename}
+                rel="noreferrer"
+                className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-700 transition hover:text-emerald-800 dark:text-emerald-200"
+              >
+                Download workbook
+                <ArrowRight size={15} />
+              </a>
+            </div>
+          )}
+
+          <div className="mt-6 space-y-3">
+            {recentLogs.map((log, index) => (
+              <div key={`${log.timestamp}-${index}`} className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{log.message}</p>
+                  <span className="text-xs text-[var(--text-tertiary)]">{log.timestamp}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
       </div>
     </div>
   );
 
   const WorkflowManagerView = () => (
-    <div className="space-y-6">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setView('dashboard')}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
-          >
-            <X size={20} />
-          </button>
+    <div className="space-y-6 pb-24">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-3">
+          {!embedMode && (
+            <button onClick={() => setView('home')} className="secondary-button">
+              Home
+            </button>
+          )}
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Workflow Manager</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm">Manual sync between Excel and Notion.</p>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">Workflow</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Review before you sync.</h1>
+            <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
+              Choose the page, add the workbook, review the rows, then send one clean update to Notion.
+            </p>
           </div>
         </div>
-        <button 
-          onClick={handleSync}
-          disabled={!selectedCalendar || !selectedFile || isSyncing}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors shadow-sm"
-        >
-          {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-          Sync to Notion
-        </button>
-      </header>
 
-      {(embedMode || iosDevice) && (
-        <Card className="p-4 border-indigo-200 bg-indigo-50/70 dark:border-indigo-900 dark:bg-indigo-950/30">
-          <div className="flex items-start gap-3">
-            <AlertCircle size={18} className="mt-0.5 shrink-0 text-indigo-600 dark:text-indigo-400" />
-            <div className="space-y-1 text-sm">
-              <p className="font-medium text-slate-900 dark:text-white">Compatibility mode is active.</p>
-              <p className="text-slate-600 dark:text-slate-300">
-                This embedded/mobile view uses the standard file picker and prepares the processed workbook as a manual download.
-              </p>
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="status-pill">
+            <span className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+            {status}
           </div>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Step 1: Calendar */}
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white font-bold">
-            <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs">1</div>
-            <h3>Select Calendar Page</h3>
-          </div>
-          <div className="space-y-2">
-            {calendarPages.map(page => (
-              <button
-                key={page.id}
-                onClick={() => setSelectedCalendar(page)}
-                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all border ${
-                  selectedCalendar?.id === page.id 
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-300' 
-                    : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-slate-300 dark:bg-slate-800/50 dark:border-slate-800 dark:text-slate-400 dark:hover:border-slate-700'
-                }`}
-              >
-                <div className="font-medium">{page.title}</div>
-                <div className="text-xs opacity-70">{page.date}</div>
-              </button>
-            ))}
-            {calendarPages.length === 0 && (
-              <div className="text-center py-4 text-slate-400 text-xs italic">
-                Loading calendar pages...
-              </div>
-            )}
-          </div>
-        </Card>
-
-        {/* Step 2: Excel */}
-        <Card className="p-4">
-          <div className="flex items-center gap-2 mb-4 text-slate-900 dark:text-white font-bold">
-            <div className="w-6 h-6 rounded-full bg-indigo-500 text-white flex items-center justify-center text-xs">2</div>
-            <h3>Select Excel File</h3>
-          </div>
-          <input 
-            type="file" 
-            ref={fileInputRef}
-            className="hidden" 
-            accept=".xlsx,.xls"
-            onChange={handleFileChange}
-          />
-          <div 
-            className={`border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer ${
-              selectedFile 
-                ? 'border-emerald-500/50 bg-emerald-50/30 dark:bg-emerald-900/10' 
-                : 'border-slate-200 dark:border-slate-800 hover:border-indigo-500/50'
-            }`}
-            onClick={openNativeSelector}
-          >
-            {selectedFile ? (
-              <>
-                <div className="bg-emerald-100 dark:bg-emerald-900/30 p-3 rounded-full text-emerald-600 mb-3">
-                  <FileSpreadsheet size={24} />
-                </div>
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{selectedFile}</p>
-                <button 
-                  className="text-xs text-slate-500 mt-2 hover:text-indigo-500"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openNativeSelector();
-                  }}
-                >
-                  Change file
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-full text-slate-400 mb-3">
-                  <Upload size={24} />
-                </div>
-                <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Click to upload Excel</p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {embedMode || iosDevice ? 'Uses the standard file picker in Notion and on iPad.' : 'or drag and drop here'}
-                </p>
-              </>
-            )}
-          </div>
-        </Card>
-
-        {/* Step 3: Status Summary */}
-        <Card className="p-4 bg-slate-50 dark:bg-slate-800/50 border-none">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-4">Sync Summary</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Target Page:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">{selectedCalendar?.title || 'None'}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Source File:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">{selectedFile || 'None'}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-slate-500">Selected Items:</span>
-              <span className="font-medium text-slate-800 dark:text-slate-200">{products.filter(p => p.selected).length}</span>
-            </div>
-            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <AlertCircle size={14} />
-                <span>Syncing will update the "作業内容" database.</span>
-              </div>
-            </div>
-          </div>
-        </Card>
+        </div>
       </div>
 
-      {downloadArtifact && (
-        <Card className="p-4 border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-medium text-slate-900 dark:text-white">Processed workbook ready</p>
-              <p className="text-sm text-slate-600 dark:text-slate-300">{downloadArtifact.filename}</p>
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {workflowSteps.map((step, index) => {
+          const stateClasses = {
+            complete:
+              'border-transparent bg-slate-900 text-white shadow-[0_18px_36px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900',
+            current:
+              'border-sky-200 bg-sky-50/85 text-sky-700 shadow-[0_18px_36px_rgba(59,130,246,0.14)] dark:border-sky-900/70 dark:bg-sky-950/35 dark:text-sky-200',
+            upcoming:
+              'border-[color:var(--line)] bg-white/55 text-[var(--text-secondary)] dark:bg-white/4',
+          } as const;
+
+          return (
+            <div key={step.label} className={`rounded-[24px] border px-4 py-4 transition-all ${stateClasses[step.state]}`}>
+              <div className="flex items-center gap-3">
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${
+                    step.state === 'complete'
+                      ? 'bg-white/16 text-white dark:bg-slate-900/8 dark:text-slate-900'
+                      : step.state === 'current'
+                        ? 'bg-white text-sky-700 dark:bg-sky-900/60 dark:text-sky-100'
+                        : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                  }`}
+                >
+                  {step.state === 'complete' ? <Check size={16} /> : index + 1}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{step.label}</p>
+                  <p className={`text-xs ${step.state === 'complete' ? 'text-white/72 dark:text-slate-700' : 'text-[var(--text-secondary)]'}`}>
+                    {step.detail}
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <a
-                href={downloadArtifact.url}
-                download={downloadArtifact.filename}
-                rel="noreferrer"
-                className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
-              >
-                Open Processed Excel
-              </a>
+          );
+        })}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="space-y-6">
+          <Panel className="p-6">
+            <div className="mb-5">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">1. Choose page</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Calendar</h2>
+            </div>
+
+            <div className="space-y-3">
+              {calendarPages.length === 0 ? (
+                <div className="rounded-[22px] border border-dashed border-[color:var(--line)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
+                  Loading pages...
+                </div>
+              ) : (
+                calendarPages.map((page) => (
+                  <button
+                    key={page.id}
+                    onClick={() => setSelectedCalendar(page)}
+                    className={`w-full rounded-[22px] border px-4 py-4 text-left transition-all ${
+                      selectedCalendar?.id === page.id
+                        ? 'border-sky-200 bg-sky-50/85 shadow-[0_18px_36px_rgba(59,130,246,0.12)] dark:border-sky-900/60 dark:bg-sky-950/30'
+                        : 'border-[color:var(--line)] bg-white/55 hover:bg-white/75 dark:bg-white/4 dark:hover:bg-white/8'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-base font-medium text-[var(--text-primary)]">{page.title}</p>
+                        <p className="mt-1 text-sm text-[var(--text-secondary)]">{page.date}</p>
+                      </div>
+                      {selectedCalendar?.id === page.id && (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-sky-600 text-white">
+                          <Check size={16} />
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-5">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">2. Upload file</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Workbook</h2>
+            </div>
+
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept=".xlsx,.xls"
+              onChange={handleFileChange}
+            />
+
+            <button
+              onClick={openNativeSelector}
+              className={`w-full rounded-[26px] border border-dashed p-6 text-left transition-all ${
+                selectedFile
+                  ? 'border-emerald-200 bg-emerald-50/75 shadow-[0_18px_36px_rgba(16,185,129,0.12)] dark:border-emerald-900/50 dark:bg-emerald-950/22'
+                  : 'border-[color:var(--line-strong)] bg-white/50 hover:bg-white/72 dark:bg-white/4 dark:hover:bg-white/8'
+              }`}
+            >
+              <div className="flex items-center gap-4">
+                <div
+                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
+                    selectedFile
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                  }`}
+                >
+                  {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-base font-medium text-[var(--text-primary)]">
+                    {selectedFile ?? 'Choose Excel file'}
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                    {selectedFile ? 'Tap to replace the current workbook.' : 'One workbook at a time.'}
+                  </p>
+                </div>
+              </div>
+            </button>
+
+            {(embedMode || iosDevice) && (
+              <div className="mt-4 flex items-start gap-3 rounded-[22px] border border-[color:var(--line)] bg-white/45 px-4 py-3 text-sm text-[var(--text-secondary)] dark:bg-white/4">
+                <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                <p>Embedded and iPad views use manual download after sync.</p>
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <Panel className="p-6 md:p-7">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">3. Review</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Products</h2>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                {products.length ? `${selectedCount} rows selected for sync.` : 'Load a workbook to review the rows.'}
+              </p>
+            </div>
+
+            {products.length > 0 && (
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
+                <div className="relative">
+                  <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
+                  <input
+                    type="text"
+                    value={reviewQuery}
+                    onChange={(event) => setReviewQuery(event.target.value)}
+                    placeholder="Search parts"
+                    className="w-full rounded-full border border-[color:var(--line)] bg-white/68 py-2 pl-10 pr-4 text-sm text-[var(--text-primary)] outline-none transition focus:border-sky-300 dark:bg-white/6 md:w-64"
+                  />
+                </div>
+                <button
+                  onClick={() => {
+                    const shouldSelectAll = products.some((product) => !product.selected);
+                    setProducts((prev) => prev.map((product) => ({...product, selected: shouldSelectAll})));
+                  }}
+                  className="secondary-button"
+                >
+                  {products.every((product) => product.selected) && products.length > 0 ? 'Clear all' : 'Select all'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!selectedCalendar || !selectedFile ? (
+            <div className="mt-8 flex min-h-[420px] items-center justify-center rounded-[28px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
+              <div className="max-w-sm space-y-3">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300">
+                  <FileSpreadsheet size={24} />
+                </div>
+                <h3 className="text-xl font-semibold tracking-[-0.03em]">Start with a page and a workbook</h3>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  The review stays quiet until the essentials are ready.
+                </p>
+              </div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="mt-8 flex min-h-[320px] items-center justify-center rounded-[28px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
+              <div className="max-w-sm space-y-3">
+                <h3 className="text-xl font-semibold tracking-[-0.03em]">No matching rows</h3>
+                <p className="text-sm text-[var(--text-secondary)]">Try a different search term or clear the filter.</p>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-8 space-y-5">
+              {groupedProducts.map(([color, items]) => {
+                const groupSelected = items.filter((item) => item.selected).length;
+                return (
+                  <div key={color} className="rounded-[28px] border border-[color:var(--line)] bg-white/46 p-4 dark:bg-white/4">
+                    <div className="flex items-center justify-between gap-4 px-2 pb-4">
+                      <div>
+                        <p className="text-sm font-medium text-[var(--text-tertiary)]">{color}</p>
+                        <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                          {items.length} parts
+                        </h3>
+                      </div>
+                      <div className="status-pill">{groupSelected} selected</div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {items.map((product) => (
+                        <div
+                          key={product.id}
+                          className={`rounded-[24px] border px-4 py-4 transition-all ${
+                            product.selected
+                              ? 'border-sky-200 bg-sky-50/80 shadow-[0_14px_30px_rgba(59,130,246,0.12)] dark:border-sky-900/50 dark:bg-sky-950/24'
+                              : 'border-[color:var(--line)] bg-white/72 dark:bg-white/4'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div className="flex min-w-0 items-start gap-4">
+                              <button
+                                onClick={() =>
+                                  setProducts((prev) =>
+                                    prev.map((item) =>
+                                      item.id === product.id ? {...item, selected: !item.selected} : item,
+                                    ),
+                                  )
+                                }
+                                className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
+                                  product.selected
+                                    ? 'bg-sky-600 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)]'
+                                    : 'border border-[color:var(--line)] bg-white/90 text-transparent dark:bg-white/6'
+                                }`}
+                                aria-label={`Toggle ${product.part}`}
+                              >
+                                <Check size={16} strokeWidth={3} />
+                              </button>
+
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  {product.trial && (
+                                    <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
+                                      {product.trial}
+                                    </span>
+                                  )}
+                                  <h4 className="text-base font-medium text-[var(--text-primary)]">{product.part}</h4>
+                                </div>
+                                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                                  Qty {product.qty} • C/T {product.ct}s • {product.date}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                              <RowToggle
+                                label="Mark"
+                                tone="success"
+                                active={product.colorAccent}
+                                onClick={() =>
+                                  setProducts((prev) =>
+                                    prev.map((item) =>
+                                      item.id === product.id
+                                        ? {...item, colorAccent: !item.colorAccent}
+                                        : item,
+                                    ),
+                                  )
+                                }
+                              />
+                              <RowToggle
+                                label="Replace"
+                                tone="warning"
+                                active={product.override}
+                                onClick={() =>
+                                  setProducts((prev) =>
+                                    prev.map((item) =>
+                                      item.id === product.id ? {...item, override: !item.override} : item,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </Panel>
+      </div>
+
+      <div className="sticky bottom-4 z-10 pt-4">
+        <div className="glass-toolbar rounded-[30px] p-4 md:p-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="grid gap-3 md:grid-cols-3 xl:flex-1">
+              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">Page</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {selectedCalendar?.title ?? 'Choose a page'}
+                </p>
+              </div>
+              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">Workbook</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{selectedFile ?? 'Choose a file'}</p>
+              </div>
+              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">Selection</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{selectedCount} ready to sync</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              {downloadArtifact && (
+                <a
+                  href={downloadArtifact.url}
+                  download={downloadArtifact.filename}
+                  rel="noreferrer"
+                  className="secondary-button justify-center"
+                >
+                  Download workbook
+                </a>
+              )}
               <button
-                onClick={() => replaceDownloadArtifact(null)}
-                className="inline-flex items-center justify-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                onClick={handleSync}
+                disabled={!selectedCalendar || !selectedFile || isSyncing}
+                className="primary-button justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
-                Clear
+                {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                Sync to Notion
               </button>
             </div>
           </div>
-        </Card>
-      )}
-
-      {/* Product List - Grouped by Color */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-            <Database size={20} className="text-indigo-500" />
-            Product List
-          </h3>
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search parts..." 
-                className="pl-9 pr-4 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 outline-none w-48 md:w-64"
-              />
-            </div>
-            <button 
-              onClick={() => {
-                const anyUnselected = products.some(p => !p.selected);
-                setProducts(prev => prev.map(p => ({ ...p, selected: anyUnselected })));
-              }}
-              className="text-xs font-bold bg-indigo-50 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-md hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors"
-            >
-              {products.every(p => p.selected && products.length > 0) ? '全解除' : '全選択'}
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-          {Object.entries(
-            products.reduce((acc, p) => {
-              if (!acc[p.color]) acc[p.color] = [];
-              acc[p.color].push(p);
-              return acc;
-            }, {} as Record<string, Product[]>)
-          ).map(([color, items]) => {
-            const productItems = items as Product[];
-            const allSelected = productItems.length > 0 && productItems.every(i => i.selected);
-            return (
-              <div key={color}>
-                <Card className="flex flex-col border-slate-300 dark:border-slate-700 h-full overflow-hidden">
-                  {/* Group Header */}
-                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
-                    <div className="flex items-center gap-3">
-                      <button 
-                        onClick={() => {
-                          const anyUnselectedInGroup = productItems.some(i => !i.selected);
-                          setProducts(prev => prev.map(p => 
-                            p.color === color ? { ...p, selected: anyUnselectedInGroup } : p
-                          ));
-                        }}
-                        className={`w-6 h-6 rounded flex items-center justify-center transition-all ${
-                          allSelected 
-                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' 
-                            : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-transparent border'
-                        }`}
-                      >
-                        <Check size={14} strokeWidth={3} />
-                      </button>
-                      <h4 className="text-xl font-bold text-slate-900 dark:text-white">{color}</h4>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">
-                        {productItems.filter(p => p.selected).length}/{productItems.length}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Group Body */}
-                  <div className="p-2 overflow-x-auto">
-                    <table className="w-full text-xs text-left">
-                      <thead className="text-[10px] text-slate-400 uppercase font-bold">
-                        <tr>
-                          <th className="px-3 py-2">
-                            <button 
-                              onClick={() => {
-                                const anyUnselected = productItems.some(i => !i.selected);
-                                setProducts(prev => prev.map(p => 
-                                  p.color === color ? { ...p, selected: anyUnselected } : p
-                                ));
-                              }}
-                              className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
-                                allSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-transparent'
-                              }`}
-                            >
-                              <Check size={10} strokeWidth={4} />
-                            </button>
-                            <span className="mt-1 block">同期</span>
-                          </th>
-                          <th className="px-3 py-2">
-                            <button 
-                              onClick={() => {
-                                const anyUnchecked = productItems.some(i => !i.colorAccent);
-                                setProducts(prev => prev.map(p => 
-                                  p.color === color ? { ...p, colorAccent: anyUnchecked } : p
-                                ));
-                              }}
-                              className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
-                                productItems.every(i => i.colorAccent) ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-transparent'
-                              }`}
-                            >
-                              <Check size={10} strokeWidth={4} />
-                            </button>
-                            <span className="mt-1 block">色付</span>
-                          </th>
-                          <th className="px-3 py-2">
-                            <button 
-                              onClick={() => {
-                                const anyUnchecked = productItems.some(i => !i.override);
-                                setProducts(prev => prev.map(p => 
-                                  p.color === color ? { ...p, override: anyUnchecked } : p
-                                ));
-                              }}
-                              className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
-                                productItems.every(i => i.override) ? 'bg-amber-600 border-amber-600 text-white' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-transparent'
-                              }`}
-                            >
-                              <Check size={10} strokeWidth={4} />
-                            </button>
-                            <span className="mt-1 block">上書</span>
-                          </th>
-                          <th className="px-3 py-2 pt-6">部品名</th>
-                          <th className="px-3 py-2 pt-6 text-right">数量 / C-T</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {productItems.map(product => (
-                          <tr key={product.id} className={`hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors ${product.selected ? 'bg-indigo-50/30 dark:bg-indigo-900/10' : ''}`}>
-                            <td className="px-3 py-3">
-                              <button 
-                                onClick={() => setProducts(prev => prev.map(p => p.id === product.id ? { ...p, selected: !p.selected } : p))}
-                                className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                                  product.selected 
-                                    ? 'bg-indigo-600 text-white' 
-                                    : 'bg-slate-100 dark:bg-slate-800 text-transparent border border-slate-200 dark:border-slate-700'
-                                }`}
-                              >
-                                <Check size={14} strokeWidth={3} />
-                              </button>
-                            </td>
-                            <td className="px-3 py-3">
-                              <button 
-                                onClick={() => setProducts(prev => prev.map(p => p.id === product.id ? { ...p, colorAccent: !p.colorAccent } : p))}
-                                className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                                  product.colorAccent 
-                                    ? 'bg-emerald-600 text-white' 
-                                    : 'bg-slate-100 dark:bg-slate-800 text-transparent border border-slate-200 dark:border-slate-700'
-                                }`}
-                              >
-                                <Check size={14} strokeWidth={3} />
-                              </button>
-                            </td>
-                            <td className="px-3 py-3">
-                              <button 
-                                onClick={() => setProducts(prev => prev.map(p => p.id === product.id ? { ...p, override: !p.override } : p))}
-                                className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                                  product.override 
-                                    ? 'bg-amber-600 text-white' 
-                                    : 'bg-slate-100 dark:bg-slate-800 text-transparent border border-slate-200 dark:border-slate-700'
-                                }`}
-                              >
-                                <Check size={14} strokeWidth={3} />
-                              </button>
-                            </td>
-                            <td className="px-3 py-3">
-                              <div className="flex flex-col gap-0.5">
-                                {product.trial && (
-                                  <span className="inline-block w-fit px-1.5 py-0.5 rounded bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-[10px] font-bold">
-                                    {product.trial}
-                                  </span>
-                                )}
-                                <span className="font-medium text-slate-800 dark:text-slate-200 leading-tight">
-                                  {product.part}
-                                </span>
-                              </div>
-                            </td>
-                            <td className="px-3 py-3 text-right whitespace-nowrap">
-                              <div className="flex flex-col items-end">
-                                <span className="font-bold text-emerald-600 dark:text-emerald-400">数量: {product.qty}</span>
-                                <span className="text-slate-400 text-[10px]">c/t: {product.ct}s</span>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>
   );
 
   const DailyGeneratorView = () => (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <header className="text-center relative">
-        <button 
-          onClick={() => setView('dashboard')}
-          className="absolute left-0 top-0 p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
-        >
-          <X size={20} />
-        </button>
-        <div className="inline-flex items-center justify-center p-3 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-2xl mb-4">
-          <Play size={32} />
+    <div className="space-y-8 pb-16">
+      <div className="space-y-3">
+        {!embedMode && (
+          <button onClick={() => setView('home')} className="secondary-button">
+            Home
+          </button>
+        )}
+        <div>
+          <p className="text-sm font-medium text-[var(--text-tertiary)]">Daily Generator</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Run the daily plan in one pass.</h1>
+          <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
+            Choose the target date, keep the defaults, and let the generator prepare the Notion update.
+          </p>
         </div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">Daily Workflow Generator</h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-2">Automatic plan generation from daily Excel files.</p>
-      </header>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-            <Calendar size={18} className="text-emerald-500" />
-            1. Target Date
-          </h3>
-          <div className="space-y-2">
-            {MOCK_CALENDAR_PAGES.map(page => (
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <Panel className="p-6">
+          <div className="mb-5">
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">Date</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Choose a target</h2>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {MOCK_CALENDAR_PAGES.map((page) => (
               <button
                 key={page.id}
                 onClick={() => setDailyCalendar(page)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-all border ${
-                  dailyCalendar?.id === page.id 
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300' 
-                    : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-slate-300 dark:bg-slate-800/50 dark:border-slate-800 dark:text-slate-400 dark:hover:border-slate-700'
+                className={`rounded-[24px] border px-4 py-4 text-left transition-all ${
+                  dailyCalendar?.id === page.id
+                    ? 'border-emerald-200 bg-emerald-50/85 shadow-[0_18px_36px_rgba(16,185,129,0.14)] dark:border-emerald-900/50 dark:bg-emerald-950/28'
+                    : 'border-[color:var(--line)] bg-white/55 hover:bg-white/75 dark:bg-white/4 dark:hover:bg-white/8'
                 }`}
               >
-                <div className="flex flex-col items-start">
-                  <span className="font-bold">{page.date}</span>
-                  <span className="text-xs opacity-70">{page.title}</span>
-                </div>
-                {dailyCalendar?.id === page.id && <CheckCircle2 size={18} />}
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">{page.date}</p>
+                <p className="mt-2 text-base font-medium text-[var(--text-primary)]">{page.title}</p>
               </button>
             ))}
           </div>
-        </Card>
+        </Panel>
 
-        <Card className="p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-              <RefreshCw size={18} className="text-emerald-500" />
-              2. Automation Settings
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                <div className="text-sm">
-                  <p className="font-medium text-slate-800 dark:text-slate-200">Auto-Highlight Excel</p>
-                  <p className="text-xs text-slate-500">Marks processed rows in yellow</p>
-                </div>
-                <div className="w-10 h-5 bg-emerald-500 rounded-full relative">
-                  <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full shadow-sm" />
-                </div>
+        <Panel strong className="p-6">
+          <div className="space-y-6">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Run</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Automation</h2>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                Highlights stay on. Duplicate rows stay out.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/58 px-4 py-4 dark:bg-white/6">
+                <p className="text-sm font-medium text-[var(--text-primary)]">Auto-highlight workbook</p>
               </div>
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg">
-                <div className="text-sm">
-                  <p className="font-medium text-slate-800 dark:text-slate-200">Skip Highlighted Rows</p>
-                  <p className="text-xs text-slate-500">Prevents duplicate entries</p>
-                </div>
-                <div className="w-10 h-5 bg-emerald-500 rounded-full relative">
-                  <div className="absolute right-1 top-1 w-3 h-3 bg-white rounded-full shadow-sm" />
-                </div>
+              <div className="rounded-[22px] border border-[color:var(--line)] bg-white/58 px-4 py-4 dark:bg-white/6">
+                <p className="text-sm font-medium text-[var(--text-primary)]">Skip highlighted rows</p>
               </div>
             </div>
-          </div>
 
-          <div className="mt-8">
-            <button 
+            <button
               onClick={handleDailyRun}
               disabled={!dailyCalendar || isSyncing}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-800 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20"
+              className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
             >
-              {isSyncing ? <RefreshCw size={20} className="animate-spin" /> : <Play size={20} />}
-              Run Generator
+              {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} />}
+              Run generator
             </button>
           </div>
-        </Card>
+        </Panel>
       </div>
 
       {isSyncing && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
-        >
-          <div className="flex items-center justify-between text-sm font-medium">
-            <span className="text-slate-600 dark:text-slate-400">Processing Excel data...</span>
-            <span className="text-emerald-600 dark:text-emerald-400">{progress}%</span>
+        <Panel className="p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">Progress</p>
+              <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em]">Processing workbook</h3>
+            </div>
+            <span className="text-sm font-medium text-[var(--text-secondary)]">{progress}%</span>
           </div>
-          <div className="w-full h-3 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
-            <motion.div 
-              className="h-full bg-emerald-500"
-              initial={{ width: 0 }}
-              animate={{ width: `${progress}%` }}
-            />
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/8">
+            <motion.div className="h-full bg-emerald-500" initial={{width: 0}} animate={{width: `${progress}%`}} />
           </div>
-          <div className="grid grid-cols-4 gap-2">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className={`h-1 rounded-full ${progress > i * 25 ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
-            ))}
-          </div>
-        </motion.div>
+        </Panel>
       )}
     </div>
   );
 
   const SettingsView = () => (
-    <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">Settings</h1>
-        <p className="text-slate-500 dark:text-slate-400 text-sm">Configure your application and Notion integration.</p>
-      </header>
+    <div className="space-y-8 pb-16">
+      <div>
+        <p className="text-sm font-medium text-[var(--text-tertiary)]">Settings</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Quiet defaults, simple controls.</h1>
+        <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
+          Keep the connection visible and the interface comfortable.
+        </p>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-6">
-          <h3 className="font-bold text-slate-900 dark:text-white mb-4">Notion Configuration</h3>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Integration Token</label>
-              <input type="password" value="secret_xxxxxxxxxxxxxxxx" readOnly className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500" />
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Panel className="p-6">
+          <div>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">Connection</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Notion</h2>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4">
+              <p className="text-xs font-medium text-[var(--text-tertiary)]">Integration token</p>
+              <p className="mt-2 text-sm text-[var(--text-primary)]">secret_xxxxxxxxxxxxxxxx</p>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Calendar Database ID</label>
-              <input type="text" value="db_xxxxxxxxxxxxxxxx" readOnly className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm text-slate-500" />
+            <div className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4">
+              <p className="text-xs font-medium text-[var(--text-tertiary)]">Calendar database</p>
+              <p className="mt-2 text-sm text-[var(--text-primary)]">db_xxxxxxxxxxxxxxxx</p>
             </div>
           </div>
-        </Card>
+        </Panel>
 
-        <Card className="p-6">
-          <h3 className="font-bold text-slate-900 dark:text-white mb-4">Application Preferences</h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-700 dark:text-slate-300">Dark Mode</span>
-              <button 
+        <Panel className="p-6">
+          <div>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">Appearance</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Display</h2>
+          </div>
+
+          <div className="mt-6 rounded-[24px] border border-[color:var(--line)] bg-white/55 px-5 py-5 dark:bg-white/4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-base font-medium text-[var(--text-primary)]">Dark mode</p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">Switch the workspace tone.</p>
+              </div>
+              <button
                 onClick={toggleTheme}
-                className={`w-12 h-6 rounded-full relative transition-colors ${theme === 'dark' ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                className={`relative h-8 w-14 rounded-full transition-colors ${
+                  theme === 'dark' ? 'bg-slate-900 dark:bg-sky-500' : 'bg-slate-300'
+                }`}
               >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-all ${theme === 'dark' ? 'right-1' : 'left-1'}`} />
+                <span
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-all ${
+                    theme === 'dark' ? 'left-7' : 'left-1'
+                  }`}
+                />
               </button>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-slate-700 dark:text-slate-300">Compact View</span>
-              <div className="w-12 h-6 bg-slate-300 rounded-full relative">
-                <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm" />
-              </div>
-            </div>
           </div>
-        </Card>
+        </Panel>
       </div>
     </div>
   );
 
   return (
-    <div className={`${embedMode ? 'min-h-0' : 'min-h-screen'} bg-slate-50 dark:bg-slate-950 flex font-sans text-slate-900 dark:text-slate-100 transition-colors`}>
-      {/* Sidebar */}
-      <AnimatePresence mode="wait">
-        {sidebarOpen && (
-          <motion.aside
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 240, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            className={`${embedMode ? 'min-h-full' : 'h-screen sticky top-0'} bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 overflow-hidden`}
-          >
-            <div className="p-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">P</div>
-              <span className="font-bold tracking-tight">Painting Team</span>
-            </div>
-
-            <nav className="flex-1 p-3 space-y-1">
-              <div className="text-[10px] font-bold text-slate-400 uppercase px-3 mb-2 tracking-wider">Hub</div>
-              <SidebarItem 
-                icon={LayoutDashboard} 
-                label="App Launcher" 
-                active={view === 'dashboard'} 
-                onClick={() => setView('dashboard')} 
-              />
-              
-              <div className="text-[10px] font-bold text-slate-400 uppercase px-3 mt-6 mb-2 tracking-wider">Active Apps</div>
-              <SidebarItem 
-                icon={RefreshCw} 
-                label="Workflow Manager" 
-                active={view === 'workflow-manager'} 
-                onClick={() => setView('workflow-manager')} 
-              />
-              <SidebarItem 
-                icon={Play} 
-                label="Daily Generator" 
-                active={view === 'daily-generator'} 
-                onClick={() => setView('daily-generator')} 
-              />
-              
-              <div className="text-[10px] font-bold text-slate-400 uppercase px-3 mt-6 mb-2 tracking-wider">System</div>
-              <SidebarItem 
-                icon={Settings} 
-                label="Settings" 
-                active={view === 'settings'} 
-                onClick={() => setView('settings')} 
-              />
-            </nav>
-
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800">
-              <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-                  <Database size={16} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold truncate">Notion Connected</p>
-                  <p className="text-[10px] text-emerald-500 font-medium">Online</p>
-                </div>
-              </div>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
-
-      {/* Main Content */}
-      <main className={`flex-1 flex flex-col min-w-0 ${embedMode ? 'min-h-0' : 'h-screen'} overflow-hidden`}>
-        {/* Top Header */}
-        <header className="h-14 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 sticky top-0 z-10">
-          <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-500 transition-colors"
-            >
-              {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <span>Painting Team</span>
-              <ChevronRight size={14} />
-              <span className="text-slate-900 dark:text-white capitalize">{view.replace('-', ' ')}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={toggleTheme}
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
-              title="Toggle Theme"
-            >
-              {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-            </button>
-            <div className="w-px h-4 bg-slate-200 dark:bg-slate-800 mx-1" />
-            <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors">
-              <MoreVertical size={18} />
-            </button>
-          </div>
-        </header>
-
-        {/* Scrollable Area */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-6xl mx-auto">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={view}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
-              >
-                {view === 'dashboard' && <HomeView />}
-                {view === 'workflow-manager' && <WorkflowManagerView />}
-                {view === 'daily-generator' && <DailyGeneratorView />}
-                {view === 'settings' && <SettingsView />}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* Footer / Status Bar */}
+    <div className="min-h-screen bg-transparent text-[var(--text-primary)]">
+      <div className="relative min-h-screen lg:flex">
         {!embedMode && (
-          <footer className="h-10 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between px-4 text-[11px] font-medium text-slate-500">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                <span>{status}</span>
-              </div>
-              {isSyncing && (
-                <div className="flex items-center gap-2">
-                  <div className="w-24 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-indigo-500" style={{ width: `${progress}%` }} />
+          <AnimatePresence>
+            {sidebarOpen && (
+              <>
+                <motion.button
+                  aria-label="Close sidebar"
+                  initial={{opacity: 0}}
+                  animate={{opacity: 1}}
+                  exit={{opacity: 0}}
+                  onClick={() => setSidebarOpen(false)}
+                  className="fixed inset-0 z-30 bg-slate-950/12 backdrop-blur-[2px] lg:hidden"
+                />
+                <motion.aside
+                  initial={{opacity: 0, x: -24}}
+                  animate={{opacity: 1, x: 0}}
+                  exit={{opacity: 0, x: -24}}
+                  transition={{duration: 0.18}}
+                  className="fixed inset-y-4 left-4 z-40 w-[280px] lg:static lg:inset-auto lg:z-0 lg:w-[300px] lg:flex-shrink-0 lg:px-4 lg:py-4"
+                >
+                  <div className="app-panel-strong flex h-full flex-col rounded-[32px] p-4">
+                    <div className="border-b border-[color:var(--line)] px-2 pb-5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-slate-900 text-lg font-semibold text-white shadow-[0_18px_36px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900">
+                          P
+                        </div>
+                        <div>
+                          <p className="text-base font-semibold tracking-[-0.03em]">Painting Team</p>
+                          <p className="text-sm text-[var(--text-secondary)]">Workflow utilities</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <nav className="mt-6 space-y-2">
+                      <NavItem icon={LayoutDashboard} label="Home" active={view === 'home'} onClick={() => setView('home')} />
+                      <NavItem
+                        icon={RefreshCw}
+                        label="Workflow"
+                        active={view === 'workflow-manager'}
+                        onClick={() => setView('workflow-manager')}
+                      />
+                      <NavItem
+                        icon={Play}
+                        label="Daily Generator"
+                        active={view === 'daily-generator'}
+                        onClick={() => setView('daily-generator')}
+                      />
+                      <NavItem
+                        icon={Settings}
+                        label="Settings"
+                        active={view === 'settings'}
+                        onClick={() => setView('settings')}
+                      />
+                    </nav>
+
+                    <div className="mt-auto rounded-[24px] border border-[color:var(--line)] bg-white/55 p-4 dark:bg-white/4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-emerald-500 text-white">
+                          <Database size={18} />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-[var(--text-primary)]">Notion connected</p>
+                          <p className="text-sm text-[var(--text-secondary)]">{status}</p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                  <span>{progress}%</span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => {
-                  const console = document.getElementById('log-console');
-                  if (console) console.classList.toggle('hidden');
-                }}
-                className="flex items-center gap-1.5 hover:text-indigo-500 transition-colors"
-              >
-                <Terminal size={12} />
-                <span>Console</span>
-              </button>
-              <div className="flex items-center gap-1.5">
-                <Database size={12} />
-                <span>Notion v2.0</span>
-              </div>
-            </div>
-          </footer>
+                </motion.aside>
+              </>
+            )}
+          </AnimatePresence>
         )}
 
-        {/* Log Console (Bottom Panel) */}
-        <div id="log-console" className={`hidden ${embedMode ? 'h-32' : 'h-40'} bg-slate-950 border-t border-slate-800 overflow-y-auto p-3 font-mono text-[10px]`}>
-          <div className="flex items-center justify-between mb-2 pb-1 border-b border-slate-800">
-            <span className="text-slate-500 uppercase font-bold tracking-widest">Log Console</span>
-            <button onClick={() => document.getElementById('log-console')?.classList.add('hidden')} className="text-slate-500 hover:text-white">
-              <X size={12} />
-            </button>
-          </div>
-          {logs.map((log, i) => (
-            <div key={i} className="flex gap-2 mb-1">
-              <span className="text-slate-600">[{log.timestamp}]</span>
-              <span className={
-                log.type === 'success' ? 'text-emerald-400' : 
-                log.type === 'error' ? 'text-rose-400' : 
-                log.type === 'warning' ? 'text-amber-400' : 
-                'text-slate-300'
-              }>
-                {log.type.toUpperCase()}: {log.message}
-              </span>
+        <main className="min-w-0 flex-1">
+          <div className="px-4 pb-8 pt-4 md:px-6 lg:px-8">
+            <header className="glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5">
+              <div className="flex items-center gap-3 md:gap-4">
+                {!embedMode && (
+                  <button onClick={() => setSidebarOpen((prev) => !prev)} className="icon-button" aria-label="Toggle sidebar">
+                    {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
+                  </button>
+                )}
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                    <span>Painting Team</span>
+                    <ChevronRight size={14} />
+                    <span className="truncate text-[var(--text-primary)]">{VIEW_LABELS[view]}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/55 px-3 py-1.5 text-sm text-[var(--text-secondary)] dark:bg-white/5 md:flex">
+                  <span className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                  {status}
+                </div>
+                <button onClick={() => setActivityOpen(true)} className="secondary-button hidden md:inline-flex">
+                  Activity
+                </button>
+                <button onClick={toggleTheme} className="icon-button" aria-label="Toggle theme">
+                  {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                </button>
+              </div>
+            </header>
+
+            <div className="mx-auto mt-6 max-w-[1200px]">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={view}
+                  initial={{opacity: 0, y: 8}}
+                  animate={{opacity: 1, y: 0}}
+                  exit={{opacity: 0, y: -8}}
+                  transition={{duration: 0.18}}
+                >
+                  {view === 'home' && <HomeView />}
+                  {view === 'workflow-manager' && <WorkflowManagerView />}
+                  {view === 'daily-generator' && <DailyGeneratorView />}
+                  {view === 'settings' && <SettingsView />}
+                </motion.div>
+              </AnimatePresence>
             </div>
-          ))}
-        </div>
-      </main>
+          </div>
+        </main>
+      </div>
+
+      <ActivityDrawer open={activityOpen} onClose={() => setActivityOpen(false)} logs={logs} status={status} isSyncing={isSyncing} />
     </div>
   );
 }
