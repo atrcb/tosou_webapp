@@ -17,17 +17,6 @@ const app = express();
 const port = Number.parseInt(process.env.PORT || '3001', 10);
 app.set('trust proxy', true);
 
-// Allow embedding in Notion iframe (web + mobile app webviews)
-const FRAME_ANCESTORS = [
-  "'self'",
-  'https://www.notion.so',
-  'https://notion.so',
-  'https://*.notion.so',
-  'https://www.notion.site',
-  'https://notion.site',
-  'https://*.notion.site'
-].join(' ');
-
 type EmbedAudience = 'notion_embed_link' | 'notion_embed_session';
 type EmbedClaims = {
   aud: EmbedAudience;
@@ -262,9 +251,22 @@ app.use(express.json());
 app.disable('x-powered-by');
 
 app.use((req, res, next) => {
-  // Use CSP frame-ancestors instead of X-Frame-Options (supports allow-list).
+  const isEmbedRoute =
+    req.path === '/embed' ||
+    req.path === '/embed/' ||
+    req.path.startsWith('/embed-app') ||
+    req.path.startsWith('/embed-api/') ||
+    req.path === '/embed/session';
+
+  // Do not send frame-ancestor restrictions for embed routes. Notion's iPad app
+  // appears to use a webview ancestor that does not consistently match the normal
+  // notion.so/site origins, which can cause a blank embed despite the page being valid.
   res.removeHeader('X-Frame-Options');
-  res.setHeader('Content-Security-Policy', `frame-ancestors ${FRAME_ANCESTORS};`);
+  if (!isEmbedRoute) {
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self';");
+  } else {
+    res.removeHeader('Content-Security-Policy');
+  }
   next();
 });
 
@@ -491,43 +493,183 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Notion Embed</title>
+    <title>Painting Team Workflow</title>
     <style>
       :root {
         color-scheme: light;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-family: "Avenir Next", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+        --bg: #f4eee5;
+        --paper: rgba(255, 250, 243, 0.94);
+        --panel: rgba(255, 252, 247, 0.94);
+        --line: rgba(120, 104, 82, 0.16);
+        --ink: #1f1a14;
+        --muted: #6f6357;
+        --accent: #c2410c;
+        --accent-strong: #9a3412;
+        --accent-soft: #ffedd5;
+        --teal: #115e59;
+        --teal-soft: #ccfbf1;
+        --rose: #be185d;
+        --rose-soft: #fce7f3;
+        --shadow: 0 20px 50px rgba(55, 34, 18, 0.08);
       }
       * { box-sizing: border-box; }
       body {
         margin: 0;
-        background: #f8fafc;
-        color: #0f172a;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(194, 65, 12, 0.10), transparent 26%),
+          radial-gradient(circle at top right, rgba(17, 94, 89, 0.10), transparent 24%),
+          linear-gradient(180deg, #faf6ef 0%, var(--bg) 100%);
+        color: var(--ink);
+      }
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.28) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.28) 1px, transparent 1px);
+        background-size: 24px 24px;
+        mask-image: linear-gradient(180deg, rgba(0,0,0,0.45), transparent 82%);
       }
       .shell {
-        max-width: 920px;
+        position: relative;
+        max-width: 1024px;
         margin: 0 auto;
-        padding: 16px;
+        padding: 18px;
       }
       .stack { display: grid; gap: 16px; }
-      .card {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 14px;
-        padding: 16px;
-        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(14px);
       }
       .hero {
-        background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
-        border-color: #c7d2fe;
+        overflow: hidden;
+        position: relative;
+        padding: 20px;
+        background:
+          radial-gradient(circle at 15% 20%, rgba(194, 65, 12, 0.16), transparent 24%),
+          radial-gradient(circle at 85% 15%, rgba(17, 94, 89, 0.14), transparent 18%),
+          linear-gradient(135deg, rgba(255, 246, 236, 0.98), rgba(255, 251, 247, 0.92));
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        right: -70px;
+        bottom: -110px;
+        border-radius: 50%;
+        background: rgba(194, 65, 12, 0.08);
+      }
+      .hero-grid {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        gap: 18px;
+      }
+      @media (min-width: 860px) {
+        .hero-grid {
+          grid-template-columns: 1.3fr 0.9fr;
+          align-items: end;
+        }
       }
       h1, h2, h3, p { margin: 0; }
-      h1 { font-size: 20px; font-weight: 700; }
-      h2 { font-size: 15px; font-weight: 700; margin-bottom: 12px; }
-      p.muted, .muted { color: #475569; font-size: 13px; }
-      .status {
-        margin-top: 8px;
+      h1 {
+        font-size: clamp(24px, 5vw, 34px);
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+      }
+      h2 {
+        font-size: 15px;
+        font-weight: 800;
+        margin-bottom: 12px;
+      }
+      h3 {
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .muted {
+        color: var(--muted);
         font-size: 13px;
-        color: #334155;
+        line-height: 1.55;
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 11px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(120, 104, 82, 0.12);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+      }
+      .hero-copy {
+        display: grid;
+        gap: 14px;
+      }
+      .hero-notes {
+        display: grid;
+        gap: 10px;
+      }
+      .hero-note {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 12px 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .hero-note strong {
+        display: block;
+        margin-bottom: 2px;
+        font-size: 12px;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        margin-top: 5px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+        flex: 0 0 auto;
+      }
+      .metrics {
+        display: grid;
+        gap: 12px;
+      }
+      .metric {
+        padding: 14px 16px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.76);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .metric-label {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.10em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .metric-value {
+        margin-top: 6px;
+        font-size: 18px;
+        font-weight: 800;
+      }
+      .metric-sub {
+        margin-top: 4px;
+        color: var(--muted);
+        font-size: 12px;
       }
       .grid {
         display: grid;
@@ -538,163 +680,464 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           grid-template-columns: 1fr 1fr;
         }
       }
+      .card {
+        padding: 18px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .step {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        color: white;
+        background: linear-gradient(135deg, var(--accent), #ea580c);
+      }
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 700;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+      }
+      .tag.success {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+      .tag.rose {
+        background: var(--rose-soft);
+        color: var(--rose);
+      }
+      .control {
+        display: grid;
+        gap: 8px;
+      }
       label {
         display: block;
         font-size: 12px;
-        font-weight: 700;
-        color: #475569;
-        margin-bottom: 6px;
+        font-weight: 800;
+        color: var(--muted);
         text-transform: uppercase;
-        letter-spacing: 0.04em;
+        letter-spacing: 0.08em;
       }
       select, input[type="file"], button, a.button {
         width: 100%;
-        border-radius: 10px;
-        border: 1px solid #cbd5e1;
-        background: #fff;
-        color: #0f172a;
+        border-radius: 16px;
+        border: 1px solid rgba(120, 104, 82, 0.16);
+        background: rgba(255,255,255,0.86);
+        color: var(--ink);
         font: inherit;
       }
       select, input[type="file"] {
-        padding: 10px 12px;
+        padding: 12px 14px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
       }
       button, a.button {
-        padding: 11px 14px;
-        font-weight: 600;
+        padding: 13px 16px;
+        font-weight: 800;
         text-align: center;
         text-decoration: none;
         cursor: pointer;
       }
       button.primary, a.button.primary {
-        background: #4f46e5;
-        border-color: #4f46e5;
+        background: linear-gradient(135deg, var(--accent), #ea580c);
+        border-color: transparent;
         color: #fff;
+        box-shadow: 0 16px 30px rgba(194, 65, 12, 0.22);
       }
       button.secondary, a.button.secondary {
-        background: #fff;
-        color: #334155;
+        background: rgba(255,255,255,0.8);
+        color: var(--ink);
       }
       button:disabled {
         cursor: not-allowed;
         opacity: 0.55;
+        box-shadow: none;
       }
-      .actions {
+      .note {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255,255,255,0.7);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .error {
+        padding: 12px;
+        border-radius: 16px;
+        background: #fff1f2;
+        color: #be123c;
+        white-space: pre-wrap;
+        border: 1px solid #fecdd3;
+      }
+      .product-groups {
         display: grid;
-        gap: 10px;
+        gap: 16px;
       }
-      .pill {
+      .product-group {
+        padding: 14px;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.74);
+        border: 1px solid rgba(120, 104, 82, 0.10);
+      }
+      .group-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .group-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .color-chip {
         display: inline-flex;
         align-items: center;
         gap: 8px;
         padding: 7px 10px;
         border-radius: 999px;
-        background: #e0e7ff;
-        color: #4338ca;
-        font-size: 12px;
-        font-weight: 700;
-      }
-      .note {
-        padding: 12px;
-        border-radius: 10px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 13px;
-      }
-      .error {
-        padding: 12px;
-        border-radius: 10px;
-        background: #fef2f2;
-        color: #b91c1c;
-        white-space: pre-wrap;
-      }
-      .products {
-        overflow-x: auto;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-      }
-      th, td {
-        padding: 10px 8px;
-        border-bottom: 1px solid #e2e8f0;
-        text-align: left;
-        vertical-align: top;
-      }
-      th {
-        color: #475569;
+        background: #fff7ed;
+        color: var(--accent-strong);
         font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-      }
-      td.right, th.right { text-align: right; }
-      .badge {
-        display: inline-block;
-        padding: 2px 6px;
-        border-radius: 999px;
-        background: #fee2e2;
-        color: #b91c1c;
-        font-size: 10px;
         font-weight: 700;
+      }
+      .swatch {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: linear-gradient(135deg, var(--accent), #fb923c);
+      }
+      .product-list {
+        display: grid;
+        gap: 12px;
+      }
+      .product-card {
+        padding: 14px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.88);
+        border: 1px solid rgba(120, 104, 82, 0.08);
+        display: grid;
+        gap: 12px;
+      }
+      .product-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .product-title {
+        font-size: 14px;
+        font-weight: 800;
+        line-height: 1.3;
+      }
+      .product-sub {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .trial {
+        display: inline-block;
+        margin-bottom: 7px;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background: var(--rose-soft);
+        color: var(--rose);
+        font-size: 10px;
+        font-weight: 800;
+      }
+      .product-metrics {
+        text-align: right;
+        min-width: 92px;
+      }
+      .product-metrics strong {
+        display: block;
+        font-size: 15px;
+      }
+      .product-metrics span {
+        display: block;
+        margin-top: 4px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .product-controls {
+        display: grid;
+        gap: 8px;
+      }
+      @media (min-width: 620px) {
+        .product-controls {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+      }
+      .toggle {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        border: 1px solid rgba(120, 104, 82, 0.12);
+        background: rgba(255,255,255,0.78);
+      }
+      .toggle input {
+        width: 18px;
+        height: 18px;
+        margin: 0;
+        accent-color: var(--accent);
+      }
+      .toggle span {
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .empty {
+        padding: 18px;
+        border-radius: 18px;
+        background: rgba(255,255,255,0.72);
+        border: 1px dashed rgba(120, 104, 82, 0.20);
+        color: var(--muted);
+        font-size: 13px;
+        text-align: center;
+      }
+      .activity {
+        display: grid;
+        gap: 8px;
+      }
+      .activity-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.76);
+        border: 1px solid rgba(120, 104, 82, 0.08);
+      }
+      .activity-index {
+        width: 22px;
+        height: 22px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 800;
+        background: var(--accent-soft);
+        color: var(--accent-strong);
+      }
+      .activity-copy {
+        flex: 1;
+        min-width: 0;
+      }
+      .dock {
+        position: sticky;
+        bottom: 14px;
+        z-index: 5;
+        padding: 14px;
+        border-radius: 22px;
+        background: rgba(31, 26, 20, 0.90);
+        color: #fff;
+        box-shadow: 0 20px 50px rgba(31, 26, 20, 0.22);
+      }
+      .dock-row {
+        display: grid;
+        gap: 12px;
+      }
+      @media (min-width: 760px) {
+        .dock-row {
+          grid-template-columns: 1fr auto;
+          align-items: center;
+        }
+      }
+      .dock-title {
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .dock-copy {
+        margin-top: 4px;
+        color: rgba(255,255,255,0.72);
+        font-size: 12px;
+      }
+      .dock-actions {
+        display: grid;
+        gap: 10px;
+      }
+      @media (min-width: 520px) {
+        .dock-actions {
+          grid-template-columns: repeat(2, minmax(0, auto));
+          justify-content: end;
+        }
+      }
+      .dock .button,
+      .dock button {
+        min-width: 180px;
       }
       .hidden { display: none; }
       .footer {
         font-size: 12px;
-        color: #64748b;
+        color: var(--muted);
       }
     </style>
   </head>
   <body>
     <div class="shell">
       <div class="stack">
-        <section class="card hero">
-          <span class="pill">iOS Compatibility Mode</span>
-          <h1 style="margin-top: 12px;">Painting Team Workflow Manager</h1>
-          <p class="muted" style="margin-top: 8px;">
-            This lightweight embed avoids the full desktop bundle and uses the standard file picker and manual download flow for Notion on iPad.
-          </p>
-          <div id="status" class="status">Initializing…</div>
+        <section class="panel hero">
+          <div class="hero-grid">
+            <div class="hero-copy">
+              <span class="eyebrow">Notion Share View</span>
+              <div>
+                <h1>Painting workflow, redesigned for the Notion frame.</h1>
+                <p class="muted" style="margin-top: 10px;">
+                  Public link, lightweight startup, mobile-safe controls, and a manual download finish so the embed behaves more like Figma, Maps, and other purpose-built share views.
+                </p>
+              </div>
+              <div class="hero-notes">
+                <div class="hero-note">
+                  <span class="dot"></span>
+                  <div>
+                    <strong>Responsive first</strong>
+                    <div class="muted">Single-column controls on small frames and grouped product cards instead of a dense desktop table.</div>
+                  </div>
+                </div>
+                <div class="hero-note">
+                  <span class="dot"></span>
+                  <div>
+                    <strong>Public, no-login flow</strong>
+                    <div class="muted">The embed is self-contained and avoids redirect, auth wall, or extra app chrome.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric-label">Current status</div>
+                <div id="status" class="metric-value">Initializing…</div>
+                <div class="metric-sub">The workflow stage updates as data loads.</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Delivery model</div>
+                <div class="metric-value">Manual finish</div>
+                <div class="metric-sub">Processed workbooks open via a direct download action that is friendlier to Notion and iPad.</div>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section id="error" class="error hidden"></section>
 
         <section class="grid two">
-          <div class="card">
-            <h2>1. Calendar</h2>
-            <label for="calendar-select">Target Page</label>
-            <select id="calendar-select">
-              <option value="">Loading…</option>
-            </select>
-          </div>
-
-          <div class="card">
-            <h2>2. Excel File</h2>
-            <label for="file-input">Upload Workbook</label>
-            <input id="file-input" type="file" accept=".xlsx,.xls" />
-            <p id="file-name" class="muted" style="margin-top: 10px;">No file uploaded.</p>
-          </div>
-        </section>
-
-        <section class="card">
-          <h2>3. Sync</h2>
-          <div class="actions">
-            <div class="note">
-              On iPad and inside Notion, the processed workbook is prepared as a manual download after sync completes.
+          <section class="panel card">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="step">1</span>
+                <div>
+                  <h2 style="margin:0;">Choose the target page</h2>
+                  <p class="muted">Pick the calendar page that should receive the synced workload.</p>
+                </div>
+              </div>
+              <span class="tag">Live Notion</span>
             </div>
-            <button id="sync-button" class="primary" disabled>Sync To Notion</button>
-            <a id="download-link" class="button secondary hidden" href="#" download>Open Processed Excel</a>
+            <div class="control">
+              <label for="calendar-select">Target page</label>
+              <select id="calendar-select">
+                <option value="">Loading pages…</option>
+              </select>
+            </div>
+          </section>
+
+          <section class="panel card">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span class="step">2</span>
+                <div>
+                  <h2 style="margin:0;">Upload the workbook</h2>
+                  <p class="muted">Use the native file picker so the flow remains reliable inside Notion and on iPad.</p>
+                </div>
+              </div>
+              <span class="tag success">Mobile-safe</span>
+            </div>
+            <div class="control">
+              <label for="file-input">Excel workbook</label>
+              <input id="file-input" type="file" accept=".xlsx,.xls" />
+              <div class="note" id="file-name">No workbook uploaded yet.</div>
+            </div>
+          </section>
+        </section>
+
+        <section class="panel card">
+          <div class="card-head">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <span class="step">3</span>
+              <div>
+                <h2 style="margin:0;">Review the paint groups</h2>
+                <p class="muted">This share view groups work by color so the embedded version stays scannable in tight frames.</p>
+              </div>
+            </div>
+            <span class="tag rose">Review before sync</span>
           </div>
+          <div id="products-empty" class="empty">Upload a workbook to load products and choose what should sync.</div>
+          <div id="products" class="product-groups hidden"></div>
         </section>
 
-        <section class="card">
-          <h2>Products</h2>
-          <div id="products-empty" class="muted">Upload a workbook to load products.</div>
-          <div id="products" class="products hidden"></div>
+        <section class="grid two">
+          <section class="panel card">
+            <h2>Why this works in Notion</h2>
+            <div class="activity">
+              <div class="activity-item">
+                <span class="activity-index">1</span>
+                <div class="activity-copy">
+                  <h3>Dedicated share view</h3>
+                  <p class="muted">The layout is purpose-built for embedding instead of squeezing the full admin console into an iframe.</p>
+                </div>
+              </div>
+              <div class="activity-item">
+                <span class="activity-index">2</span>
+                <div class="activity-copy">
+                  <h3>Public link flow</h3>
+                  <p class="muted">No login wall, no pop-up bootstrap, and no challenge page in front of the frame.</p>
+                </div>
+              </div>
+              <div class="activity-item">
+                <span class="activity-index">3</span>
+                <div class="activity-copy">
+                  <h3>Progressive complexity</h3>
+                  <p class="muted">High-level status stays visible first, while dense product controls appear only after a workbook is loaded.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel card">
+            <h2>Activity feed</h2>
+            <div id="log" class="footer">Waiting for input.</div>
+          </section>
         </section>
 
-        <section class="card">
-          <h2>Activity</h2>
-          <div id="log" class="footer">Waiting for input.</div>
+        <section class="dock">
+          <div class="dock-row">
+            <div>
+              <div class="dock-title">Ready to sync when both a page and workbook are selected.</div>
+              <div class="dock-copy">After the sync completes, the processed workbook appears as a direct download action here.</div>
+            </div>
+            <div class="dock-actions">
+              <button id="sync-button" class="primary" disabled>Sync to Notion</button>
+              <a id="download-link" class="button secondary hidden" href="#" download>Open processed workbook</a>
+            </div>
+          </div>
         </section>
       </div>
     </div>
@@ -718,8 +1161,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           selectedFile: '',
           selectedCalendarId: '',
           products: [],
-          downloadUrl: '',
-          downloadName: 'updated_plan.xlsx'
+          downloadUrl: ''
         };
 
         const setStatus = (message) => {
@@ -729,7 +1171,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         const setError = (message) => {
           errorEl.textContent = String(message);
           errorEl.classList.remove('hidden');
-          setStatus('Failed');
+          setStatus('Needs attention');
         };
 
         const log = (message) => {
@@ -766,11 +1208,10 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
           });
           state.downloadUrl = URL.createObjectURL(blob);
-          state.downloadName = filename;
           downloadLinkEl.href = state.downloadUrl;
           downloadLinkEl.download = filename;
           downloadLinkEl.className = 'button primary';
-          downloadLinkEl.textContent = 'Open Processed Excel';
+          downloadLinkEl.textContent = 'Open processed workbook';
           downloadLinkEl.classList.remove('hidden');
         };
 
@@ -778,54 +1219,77 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           if (!state.products.length) {
             productsEl.classList.add('hidden');
             productsEmptyEl.classList.remove('hidden');
-            productsEmptyEl.textContent = 'Upload a workbook to load products.';
+            productsEmptyEl.textContent = 'Upload a workbook to load products and choose what should sync.';
             return;
           }
 
           productsEmptyEl.classList.add('hidden');
           productsEl.classList.remove('hidden');
 
-          const rows = state.products.map((product, index) => {
-            const trial = product.trial ? '<div><span class="badge">' + product.trial + '</span></div>' : '';
-            return '<tr>' +
-              '<td><input type="checkbox" data-index="' + index + '" data-key="selected"' + (product.selected ? ' checked' : '') + ' /></td>' +
-              '<td><input type="checkbox" data-index="' + index + '" data-key="colorAccent"' + (product.colorAccent ? ' checked' : '') + ' /></td>' +
-              '<td><input type="checkbox" data-index="' + index + '" data-key="override"' + (product.override ? ' checked' : '') + ' /></td>' +
-              '<td>' + trial + '<div>' + (product.part || '') + '</div><div class="muted">' + (product.color || '') + '</div></td>' +
-              '<td class="right">' + (product.qty || 0) + '</td>' +
-              '<td class="right">' + (product.ct || 0) + '</td>' +
-            '</tr>';
+          const groups = state.products.reduce(function (acc, product, index) {
+            const groupKey = (product.color || 'Unspecified').trim() || 'Unspecified';
+            if (!acc[groupKey]) acc[groupKey] = [];
+            acc[groupKey].push({ product: product, index: index });
+            return acc;
+          }, {});
+
+          productsEl.innerHTML = Object.keys(groups).sort().map(function (groupKey) {
+            const items = groups[groupKey];
+            const selectedCount = items.filter(function (item) { return item.product.selected; }).length;
+            const cards = items.map(function (item) {
+              const product = item.product;
+              const trial = product.trial
+                ? '<span class="trial">' + product.trial + '</span>'
+                : '';
+
+              return '' +
+                '<article class="product-card">' +
+                  '<div class="product-top">' +
+                    '<div>' +
+                      trial +
+                      '<div class="product-title">' + (product.part || 'Untitled part') + '</div>' +
+                      '<div class="product-sub">' + (product.date || 'No date') + ' · ' + (product.color || 'No color') + '</div>' +
+                    '</div>' +
+                    '<div class="product-metrics">' +
+                      '<strong>' + (product.qty || 0) + ' pcs</strong>' +
+                      '<span>' + (product.ct || 0) + ' sec / part</span>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="product-controls">' +
+                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="selected"' + (product.selected ? ' checked' : '') + ' /><span>Sync this item</span></label>' +
+                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="colorAccent"' + (product.colorAccent ? ' checked' : '') + ' /><span>Append color to part</span></label>' +
+                    '<label class="toggle"><input type="checkbox" data-index="' + item.index + '" data-key="override"' + (product.override ? ' checked' : '') + ' /><span>Override existing data</span></label>' +
+                  '</div>' +
+                '</article>';
+            }).join('');
+
+            return '' +
+              '<section class="product-group">' +
+                '<div class="group-head">' +
+                  '<div class="group-meta">' +
+                    '<span class="color-chip"><span class="swatch"></span>' + groupKey + '</span>' +
+                    '<span class="tag">' + items.length + ' items</span>' +
+                  '</div>' +
+                  '<span class="tag success">' + selectedCount + ' selected</span>' +
+                '</div>' +
+                '<div class="product-list">' + cards + '</div>' +
+              '</section>';
           }).join('');
-
-          productsEl.innerHTML =
-            '<table>' +
-              '<thead>' +
-                '<tr>' +
-                  '<th>Sync</th>' +
-                  '<th>Color</th>' +
-                  '<th>Override</th>' +
-                  '<th>Part</th>' +
-                  '<th class="right">Qty</th>' +
-                  '<th class="right">C/T</th>' +
-                '</tr>' +
-              '</thead>' +
-              '<tbody>' + rows + '</tbody>' +
-            '</table>';
-
-          Array.prototype.forEach.call(productsEl.querySelectorAll('input[type="checkbox"]'), function (input) {
-            input.addEventListener('change', function (event) {
-              const target = event.target;
-              const index = Number(target.getAttribute('data-index'));
-              const key = target.getAttribute('data-key');
-              if (!Number.isNaN(index) && key) {
-                state.products[index][key] = target.checked;
-              }
-            });
-          });
         };
 
+        productsEl.addEventListener('change', function (event) {
+          const target = event.target;
+          if (!target || target.tagName !== 'INPUT') return;
+          const index = Number(target.getAttribute('data-index'));
+          const key = target.getAttribute('data-key');
+          if (!Number.isNaN(index) && key) {
+            state.products[index][key] = target.checked;
+            renderProducts();
+          }
+        });
+
         const loadCalendar = async () => {
-          setStatus('Loading calendar…');
+          setStatus('Loading calendar');
           const response = await apiFetch('/embed-api/calendar');
           const data = await response.json();
           if (!response.ok || !Array.isArray(data)) {
@@ -833,19 +1297,19 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           }
 
           calendarSelectEl.innerHTML =
-            '<option value="">Select a calendar page…</option>' +
+            '<option value="">Choose a calendar page…</option>' +
             data.map(function (page) {
               const title = (page.title || 'Untitled') + ' (' + (page.date || '') + ')';
               return '<option value="' + page.id + '">' + title + '</option>';
             }).join('');
 
-          setStatus('Ready');
-          log('Calendar loaded.');
+          setStatus('Ready for workbook');
+          log('Calendar loaded and ready.');
         };
 
         const loadProducts = async () => {
           if (!state.selectedFile) return;
-          setStatus('Loading products…');
+          setStatus('Reviewing workbook');
           const response = await apiFetch('/embed-api/load-products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -858,7 +1322,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
 
           state.products = data;
           renderProducts();
-          setStatus('Products loaded');
+          setStatus('Ready to sync');
           log('Loaded ' + data.length + ' products from ' + state.selectedFile + '.');
         };
 
@@ -889,7 +1353,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             if (!file) return;
 
             revokeDownload();
-            setStatus('Uploading file…');
+            setStatus('Uploading workbook');
             const formData = new FormData();
             formData.append('file', file);
             const response = await apiFetch('/embed-api/upload', {
@@ -902,7 +1366,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             }
 
             state.selectedFile = data.filename;
-            fileNameEl.textContent = 'Uploaded: ' + data.filename;
+            fileNameEl.textContent = 'Uploaded workbook: ' + data.filename;
             updateSyncButton();
             log('File uploaded: ' + data.filename + '.');
             await loadProducts();
@@ -914,8 +1378,8 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         syncButtonEl.addEventListener('click', async function () {
           if (!state.selectedFile || !state.selectedCalendarId) return;
           try {
-            setStatus('Syncing with Notion…');
-            log('Running sync…');
+            setStatus('Syncing to Notion');
+            log('Running sync for the selected paint groups.');
             const response = await apiFetch('/embed-api/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

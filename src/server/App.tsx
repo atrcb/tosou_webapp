@@ -196,11 +196,15 @@ export default function App() {
   const iosDevice = isAppleMobileDevice();
   const canUseNativeFilePicker = supportsNativeFilePicker() && (!embedMode || !iosDevice);
   const shouldAutoDownload = !embedMode && !iosDevice;
-  const [view, setView] = useState<View>('dashboard');
+  const [view, setView] = useState<View>(embedMode ? 'workflow-manager' : 'dashboard');
   const [theme, setTheme] = useState<Theme>('light');
   const [sidebarOpen, setSidebarOpen] = useState(() => !embedMode);
   const [logs, setLogs] = useState<LogEntry[]>([
-    { timestamp: '06:31:23', message: 'Application initialized.', type: 'info' },
+    {
+      timestamp: '06:31:23',
+      message: embedMode ? 'Embed share view initialized.' : 'Application initialized.',
+      type: 'info'
+    },
     { timestamp: '06:31:25', message: 'Connected to Notion API.', type: 'success' },
   ]);
   const [status, setStatus] = useState('Ready.');
