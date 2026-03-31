@@ -1164,7 +1164,9 @@ export default function App() {
                   <div key={color} className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-[0_18px_32px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/26">
                     <div className="flex items-center justify-between gap-4 px-2 pb-4">
                       <div>
-                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{color}</p>
+                        <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-white shadow-sm dark:bg-slate-100 dark:text-slate-900">
+                          {color}
+                        </div>
                         <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
                           {tr(`${items.length} parts`, `${items.length} 点`)}
                         </h3>
