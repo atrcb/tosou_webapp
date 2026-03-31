@@ -6,12 +6,14 @@
 import React, {useDeferredValue, useEffect, useRef, useState} from 'react';
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   Calendar,
   Check,
   ChevronRight,
   Database,
   FileSpreadsheet,
+  Languages,
   LayoutDashboard,
   Menu,
   Moon,
@@ -34,10 +36,12 @@ declare global {
 
 type View = 'home' | 'workflow-manager' | 'daily-generator' | 'settings';
 type Theme = 'light' | 'dark';
+type Language = 'en' | 'ja';
+type LocalizedText = Record<Language, string>;
 type StepState = 'complete' | 'current' | 'upcoming';
 type WorkflowStep = {
-  label: string;
-  detail: string;
+  label: LocalizedText;
+  detail: LocalizedText;
   state: StepState;
 };
 type DownloadArtifact = {
@@ -66,15 +70,17 @@ interface Product {
 
 interface LogEntry {
   timestamp: string;
-  message: string;
+  message: LocalizedText;
   type: 'info' | 'success' | 'warning' | 'error';
 }
 
-const VIEW_LABELS: Record<View, string> = {
-  home: 'Home',
-  'workflow-manager': 'Workflow',
-  'daily-generator': 'Daily Generator',
-  settings: 'Settings',
+const text = (en: string, ja: string): LocalizedText => ({en, ja});
+
+const VIEW_LABELS: Record<View, LocalizedText> = {
+  home: text('Home', 'ホーム'),
+  'workflow-manager': text('Workflow', 'ワークフロー'),
+  'daily-generator': text('Daily Generator', '日次生成'),
+  settings: text('Settings', '設定'),
 };
 
 const isAppleMobileDevice = (): boolean => {
@@ -219,6 +225,49 @@ const RowToggle = ({
   );
 };
 
+const BackButton = ({label, onClick}: {label: string; onClick: () => void}) => (
+  <button onClick={onClick} className="secondary-button w-fit">
+    <ArrowLeft size={16} />
+    {label}
+  </button>
+);
+
+const LanguageToggle = ({
+  language,
+  onChange,
+}: {
+  language: Language;
+  onChange: (nextLanguage: Language) => void;
+}) => (
+  <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--line)] bg-white/60 p-1 text-sm shadow-sm backdrop-blur-xl dark:bg-white/6">
+    <div className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-tertiary)]">
+      <Languages size={15} />
+    </div>
+    <button
+      onClick={() => onChange('ja')}
+      className={`rounded-full px-3 py-1.5 font-medium transition-all ${
+        language === 'ja'
+          ? 'bg-slate-900 text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900'
+          : 'text-[var(--text-secondary)] hover:bg-white/80 dark:hover:bg-white/8'
+      }`}
+      aria-pressed={language === 'ja'}
+    >
+      日本語
+    </button>
+    <button
+      onClick={() => onChange('en')}
+      className={`rounded-full px-3 py-1.5 font-medium transition-all ${
+        language === 'en'
+          ? 'bg-slate-900 text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900'
+          : 'text-[var(--text-secondary)] hover:bg-white/80 dark:hover:bg-white/8'
+      }`}
+      aria-pressed={language === 'en'}
+    >
+      EN
+    </button>
+  </div>
+);
+
 const ActivityDrawer = ({
   open,
   onClose,
@@ -226,6 +275,7 @@ const ActivityDrawer = ({
   status,
   isSyncing,
   reducedMotion,
+  language,
 }: {
   open: boolean;
   onClose: () => void;
@@ -233,12 +283,13 @@ const ActivityDrawer = ({
   status: string;
   isSyncing: boolean;
   reducedMotion: boolean;
+  language: Language;
 }) => (
   <AnimatePresence>
     {open && (
       <>
         <motion.button
-          aria-label="Close activity panel"
+          aria-label={language === 'ja' ? 'アクティビティパネルを閉じる' : 'Close activity panel'}
           className="fixed inset-0 z-40 bg-slate-950/16 backdrop-blur-[2px]"
           initial={reducedMotion ? false : {opacity: 0}}
           animate={{opacity: 1}}
@@ -256,10 +307,12 @@ const ActivityDrawer = ({
           <div className="app-panel-strong flex h-full flex-col rounded-[30px] p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-medium text-[var(--text-tertiary)]">Activity</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em]">Recent updates</h2>
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">{language === 'ja' ? 'アクティビティ' : 'Activity'}</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.03em]">
+                  {language === 'ja' ? '最近の更新' : 'Recent updates'}
+                </h2>
               </div>
-              <button onClick={onClose} className="icon-button" aria-label="Close">
+              <button onClick={onClose} className="icon-button" aria-label={language === 'ja' ? '閉じる' : 'Close'}>
                 <X size={18} />
               </button>
             </div>
@@ -274,7 +327,7 @@ const ActivityDrawer = ({
             <div className="soft-scroll mt-5 flex-1 space-y-3 overflow-y-auto pr-1">
               {logs.length === 0 ? (
                 <div className="rounded-[22px] border border-dashed border-[color:var(--line)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
-                  No recent activity.
+                  {language === 'ja' ? '最近のアクティビティはありません。' : 'No recent activity.'}
                 </div>
               ) : (
                 [...logs].reverse().map((log, index) => (
@@ -292,7 +345,7 @@ const ActivityDrawer = ({
                                   : 'bg-slate-400'
                           }`}
                         />
-                        <p className="text-sm font-medium text-[var(--text-primary)]">{log.message}</p>
+                        <p className="text-sm font-medium text-[var(--text-primary)]">{log.message[language]}</p>
                       </div>
                       <span className="shrink-0 text-xs text-[var(--text-tertiary)]">{log.timestamp}</span>
                     </div>
@@ -314,8 +367,16 @@ export default function App() {
   const canUseNativeFilePicker = supportsNativeFilePicker() && !embedMode && !iosDevice;
   const shouldAutoDownload = !embedMode && !iosDevice;
 
-  const [view, setView] = useState<View>('home');
+  const [viewHistory, setViewHistory] = useState<View[]>(['home']);
   const [theme, setTheme] = useState<Theme>('light');
+  const [language, setLanguage] = useState<Language>(() => {
+    if (typeof window === 'undefined') return 'en';
+    const savedLanguage = window.localStorage.getItem('app-language');
+    if (savedLanguage === 'ja' || savedLanguage === 'en') {
+      return savedLanguage;
+    }
+    return navigator.language.toLowerCase().startsWith('ja') ? 'ja' : 'en';
+  });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (embedMode || typeof window === 'undefined') return false;
     return window.innerWidth >= 1024;
@@ -324,12 +385,18 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([
     {
       timestamp: '06:31:23',
-      message: embedMode ? 'Embed share view initialized.' : 'Application initialized.',
+      message: embedMode
+        ? text('Embed share view initialized.', '埋め込み共有ビューを初期化しました。')
+        : text('Application initialized.', 'アプリを初期化しました。'),
       type: 'info',
     },
-    {timestamp: '06:31:25', message: 'Connected to Notion API.', type: 'success'},
+    {
+      timestamp: '06:31:25',
+      message: text('Connected to Notion API.', 'Notion API に接続しました。'),
+      type: 'success',
+    },
   ]);
-  const [status, setStatus] = useState('Ready');
+  const [status, setStatus] = useState<LocalizedText>(text('Ready', '準備完了'));
   const [progress, setProgress] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
 
@@ -344,11 +411,36 @@ export default function App() {
 
   const deferredReviewQuery = useDeferredValue(reviewQuery);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const view = viewHistory[viewHistory.length - 1] ?? 'home';
+  const localize = (message: LocalizedText) => message[language];
+  const tr = (en: string, ja: string) => (language === 'ja' ? ja : en);
 
-  const addLog = (message: string, type: LogEntry['type'] = 'info') => {
-    const timestamp = new Date().toLocaleTimeString('en-GB', {hour12: false});
+  const addLog = (message: LocalizedText, type: LogEntry['type'] = 'info') => {
+    const timestamp = new Date().toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-GB', {
+      hour12: false,
+    });
     setLogs((prev) => [...prev, {timestamp, message, type}]);
   };
+
+  const closeSidebarOnMobile = () => {
+    if (embedMode || typeof window === 'undefined') return;
+    if (window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
+  };
+
+  const navigateTo = (nextView: View) => {
+    closeSidebarOnMobile();
+    setViewHistory((prev) => (prev[prev.length - 1] === nextView ? prev : [...prev, nextView]));
+  };
+
+  const goBack = () => {
+    closeSidebarOnMobile();
+    setViewHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+  };
+
+  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+  const handleLanguageChange = (nextLanguage: Language) => setLanguage(nextLanguage);
 
   const replaceDownloadArtifact = (nextArtifact: DownloadArtifact | null) => {
     setDownloadArtifact((currentArtifact) => {
@@ -367,14 +459,14 @@ export default function App() {
         replaceDownloadArtifact(null);
         triggerDownload(artifact);
         window.setTimeout(() => URL.revokeObjectURL(artifact.url), 1000);
-        addLog(`Download triggered: ${filename}`, 'success');
+        addLog(text(`Download triggered: ${filename}`, `ダウンロードを開始しました: ${filename}`), 'success');
         return;
       }
 
       replaceDownloadArtifact(artifact);
-      addLog('Processed workbook ready for download.', 'success');
+      addLog(text('Processed workbook ready for download.', '処理済みのブックをダウンロードできます。'), 'success');
     } catch (error: any) {
-      addLog(`Error creating download link: ${error.message}`, 'error');
+      addLog(text(`Error creating download link: ${error.message}`, `ダウンロードリンクの作成エラー: ${error.message}`), 'error');
     }
   };
 
@@ -388,7 +480,7 @@ export default function App() {
     }
 
     setIsSyncing(true);
-    setStatus('Uploading workbook');
+    setStatus(text('Uploading workbook', 'ブックをアップロード中'));
 
     const formData = new FormData();
     formData.append('file', file);
@@ -403,11 +495,11 @@ export default function App() {
 
       const data = await response.json();
       setSelectedFile(data.filename);
-      addLog(`Workbook uploaded: ${data.filename}`, 'success');
-      setStatus('Workbook ready');
+      addLog(text(`Workbook uploaded: ${data.filename}`, `ブックをアップロードしました: ${data.filename}`), 'success');
+      setStatus(text('Workbook ready', 'ブックの準備ができました'));
     } catch (error) {
-      addLog(`Upload error: ${error}`, 'error');
-      setStatus('Upload failed');
+      addLog(text(`Upload error: ${error}`, `アップロードエラー: ${error}`), 'error');
+      setStatus(text('Upload failed', 'アップロードに失敗しました'));
     } finally {
       setIsSyncing(false);
       if (inputElement) {
@@ -430,11 +522,11 @@ export default function App() {
         });
         const file = await handle.getFile();
         setFileHandle(handle);
-        addLog(`Direct file access enabled for ${file.name}`, 'success');
+        addLog(text(`Direct file access enabled for ${file.name}`, `${file.name} の直接ファイルアクセスを有効にしました。`), 'success');
         handleFileChange(null, file);
       } catch (error: any) {
         if (error.name !== 'AbortError') {
-          addLog(`File picker error: ${error.message}. Falling back.`, 'warning');
+          addLog(text(`File picker error: ${error.message}. Falling back.`, `ファイルピッカーエラー: ${error.message}。標準モードに切り替えます。`), 'warning');
           fileInputRef.current?.click();
         }
       }
@@ -442,11 +534,9 @@ export default function App() {
     }
 
     setFileHandle(null);
-    addLog('Using the standard file picker for compatibility.', 'info');
+    addLog(text('Using the standard file picker for compatibility.', '互換性のため標準ファイルピッカーを使用します。'), 'info');
     fileInputRef.current?.click();
   };
-
-  const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -455,6 +545,13 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('app-language', language);
+    }
+    document.documentElement.lang = language;
+  }, [language]);
 
   useEffect(() => {
     const loadCalendar = async () => {
@@ -467,7 +564,7 @@ export default function App() {
         const data = await response.json();
         setCalendarPages(data);
       } catch (error) {
-        addLog(`Error loading calendar pages: ${error}`, 'error');
+        addLog(text(`Error loading calendar pages: ${error}`, `カレンダーページの読み込みエラー: ${error}`), 'error');
         setCalendarPages(MOCK_CALENDAR_PAGES);
       }
     };
@@ -488,7 +585,7 @@ export default function App() {
 
     const loadProducts = async () => {
       setIsSyncing(true);
-      setStatus('Loading workbook');
+      setStatus(text('Loading workbook', 'ブックを読み込み中'));
       try {
         const response = await apiFetch('/api/load-products', {
           method: 'POST',
@@ -501,11 +598,11 @@ export default function App() {
         }
         const data = await response.json();
         setProducts(data);
-        setStatus('Review ready');
-        addLog(`Loaded ${data.length} products from ${selectedFile}`, 'success');
+        setStatus(text('Review ready', '確認の準備ができました'));
+        addLog(text(`Loaded ${data.length} products from ${selectedFile}`, `${selectedFile} から ${data.length} 件の商品を読み込みました。`), 'success');
       } catch (error) {
-        addLog(`Error loading products: ${error}`, 'error');
-        setStatus('Review loaded with sample data');
+        addLog(text(`Error loading products: ${error}`, `商品の読み込みエラー: ${error}`), 'error');
+        setStatus(text('Review loaded with sample data', 'サンプルデータで確認画面を表示しました'));
         setProducts(MOCK_PRODUCTS);
       } finally {
         setIsSyncing(false);
@@ -519,8 +616,8 @@ export default function App() {
     if (!selectedCalendar || !selectedFile) return;
 
     setIsSyncing(true);
-    setStatus('Syncing to Notion');
-    addLog(`Starting sync for ${selectedCalendar.title}`, 'info');
+    setStatus(text('Syncing to Notion', 'Notion と同期中'));
+    addLog(text(`Starting sync for ${selectedCalendar.title}`, `${selectedCalendar.title} の同期を開始します。`), 'info');
 
     try {
       const response = await apiFetch('/api/sync', {
@@ -542,7 +639,7 @@ export default function App() {
 
       if (fileHandle && data.buffer && canUseNativeFilePicker) {
         try {
-          addLog('Writing back to the original workbook.', 'info');
+          addLog(text('Writing back to the original workbook.', '元のブックに書き戻しています。'), 'info');
           const writable = await fileHandle.createWritable();
           const binaryStr = atob(data.buffer);
           const bytes = new Uint8Array(binaryStr.length);
@@ -551,17 +648,17 @@ export default function App() {
           }
           await writable.write(bytes);
           await writable.close();
-          addLog('Original workbook updated in place.', 'success');
+          addLog(text('Original workbook updated in place.', '元のブックを直接更新しました。'), 'success');
         } catch (error: any) {
-          addLog(`Direct write error: ${error.message}`, 'error');
+          addLog(text(`Direct write error: ${error.message}`, `直接書き込みエラー: ${error.message}`), 'error');
           downloadBuffer(data.buffer, selectedFile || 'updated_plan.xlsx');
         }
       } else if (data.buffer) {
         downloadBuffer(data.buffer, selectedFile || 'updated_plan.xlsx');
       }
 
-      setStatus('Sync complete');
-      addLog('Notion sync completed successfully.', 'success');
+      setStatus(text('Sync complete', '同期が完了しました'));
+      addLog(text('Notion sync completed successfully.', 'Notion との同期が完了しました。'), 'success');
 
       const refreshResponse = await apiFetch('/api/load-products', {
         method: 'POST',
@@ -573,8 +670,8 @@ export default function App() {
         setProducts(refreshedData);
       }
     } catch (error) {
-      addLog(`Sync error: ${error}`, 'error');
-      setStatus('Sync failed');
+      addLog(text(`Sync error: ${error}`, `同期エラー: ${error}`), 'error');
+      setStatus(text('Sync failed', '同期に失敗しました'));
     } finally {
       setIsSyncing(false);
       setProgress(0);
@@ -585,8 +682,8 @@ export default function App() {
     if (!dailyCalendar) return;
 
     setIsSyncing(true);
-    setStatus('Running generator');
-    addLog(`Generating workflow for ${dailyCalendar.date}`, 'info');
+    setStatus(text('Running generator', 'ジェネレーターを実行中'));
+    addLog(text(`Generating workflow for ${dailyCalendar.date}`, `${dailyCalendar.date} のワークフローを生成しています。`), 'info');
 
     let nextProgress = 0;
     const interval = setInterval(() => {
@@ -596,8 +693,8 @@ export default function App() {
         clearInterval(interval);
         setIsSyncing(false);
         setProgress(0);
-        setStatus('Daily run complete');
-        addLog('Daily workflow generated and synced to Notion.', 'success');
+        setStatus(text('Daily run complete', '日次実行が完了しました'));
+        addLog(text('Daily workflow generated and synced to Notion.', '日次ワークフローを生成し、Notion に同期しました。'), 'success');
       }
     }, 100);
   };
@@ -623,23 +720,25 @@ export default function App() {
 
   const workflowSteps: WorkflowStep[] = [
     {
-      label: 'Choose page',
-      detail: selectedCalendar ? selectedCalendar.title : 'Pick a Notion page',
+      label: text('Choose page', 'ページを選択'),
+      detail: selectedCalendar ? text(selectedCalendar.title, selectedCalendar.title) : text('Pick a Notion page', 'Notionページを選択'),
       state: (selectedCalendar ? 'complete' : 'current') as StepState,
     },
     {
-      label: 'Upload file',
-      detail: selectedFile ?? 'Add the workbook',
+      label: text('Upload file', 'ファイルをアップロード'),
+      detail: selectedFile ? text(selectedFile, selectedFile) : text('Add the workbook', 'ブックを追加'),
       state: (selectedFile ? 'complete' : selectedCalendar ? 'current' : 'upcoming') as StepState,
     },
     {
-      label: 'Review',
-      detail: products.length ? `${selectedCount} items selected` : 'Check the rows',
+      label: text('Review', '確認'),
+      detail: products.length
+        ? text(`${selectedCount} items selected`, `${selectedCount} 件を選択中`)
+        : text('Check the rows', '行を確認'),
       state: (selectedFile ? 'current' : 'upcoming') as StepState,
     },
     {
-      label: 'Sync',
-      detail: selectedCalendar && selectedFile ? 'Ready when you are' : 'Waiting for setup',
+      label: text('Sync', '同期'),
+      detail: selectedCalendar && selectedFile ? text('Ready when you are', '準備完了') : text('Waiting for setup', '準備待ち'),
       state: (selectedCalendar && selectedFile ? 'current' : 'upcoming') as StepState,
     },
   ];
@@ -670,42 +769,43 @@ export default function App() {
         <div className={heroCopyClass}>
           <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] shadow-sm dark:border-white/10 dark:bg-white/6">
             <LayoutDashboard size={14} />
-            Painting Team
+            {tr('Painting Team', '塗装チーム')}
           </div>
           <div className="space-y-4">
-            <h1 className={heroTitleClass}>
-              Quiet control for the daily plan.
-            </h1>
+            <h1 className={heroTitleClass}>{tr('Quiet control for the daily plan.', '日々の計画を、静かにコントロール。')}</h1>
             <p className={heroBodyClass}>
-              Review the workbook, keep only the context that matters, and sync to Notion without the dashboard noise.
+              {tr(
+                'Review the workbook, keep only the context that matters, and sync to Notion without the dashboard noise.',
+                'ブックを確認し、必要な情報だけを残して、余計なノイズなしで Notion に同期します。',
+              )}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button onClick={() => setView('workflow-manager')} className="primary-button">
-              Start workflow
+            <button onClick={() => navigateTo('workflow-manager')} className="primary-button">
+              {tr('Start workflow', 'ワークフローを開始')}
               <ArrowRight size={18} />
             </button>
-            <button onClick={() => setView('daily-generator')} className="secondary-button">
-              Daily generator
+            <button onClick={() => navigateTo('daily-generator')} className="secondary-button">
+              {tr('Daily generator', '日次生成')}
             </button>
             <button onClick={() => setActivityOpen(true)} className="secondary-button">
-              Recent activity
+              {tr('Recent activity', '最近のアクティビティ')}
             </button>
           </div>
 
           <div className="flex flex-wrap gap-3 pt-2">
             <div className="status-pill">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              Notion connected
+              {tr('Notion connected', 'Notion 接続済み')}
             </div>
             <div className="status-pill">
               <Calendar size={14} />
-              {selectedCalendar ? selectedCalendar.title : 'No page selected'}
+              {selectedCalendar ? selectedCalendar.title : tr('No page selected', 'ページ未選択')}
             </div>
             <div className="status-pill">
               <FileSpreadsheet size={14} />
-              {selectedFile ?? 'No workbook selected'}
+              {selectedFile ?? tr('No workbook selected', 'ブック未選択')}
             </div>
           </div>
         </div>
@@ -715,33 +815,38 @@ export default function App() {
         <Panel className="p-6 md:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Continue</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Workflow manager</h2>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Continue', '続行')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Workflow manager', 'ワークフローマネージャー')}</h2>
               <p className="mt-2 max-w-md text-sm text-[var(--text-secondary)]">
-                Pick up the current sync with one page, one workbook, and one clear next step.
+                {tr(
+                  'Pick up the current sync with one page, one workbook, and one clear next step.',
+                  '1つのページ、1つのブック、次の1手だけに絞って現在の同期を再開します。',
+                )}
               </p>
             </div>
-            <button onClick={() => setView('workflow-manager')} className="secondary-button">
-              {selectedCalendar || selectedFile ? 'Resume' : 'Open'}
+            <button onClick={() => navigateTo('workflow-manager')} className="secondary-button">
+              {selectedCalendar || selectedFile ? tr('Resume', '再開') : tr('Open', '開く')}
             </button>
           </div>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Page</p>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Page', 'ページ')}</p>
               <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
-                {selectedCalendar?.title ?? 'Choose a page'}
+                {selectedCalendar?.title ?? tr('Choose a page', 'ページを選択')}
               </p>
             </div>
             <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Workbook</p>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Workbook', 'ブック')}</p>
               <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
-                {selectedFile ?? 'Choose a file'}
+                {selectedFile ?? tr('Choose a file', 'ファイルを選択')}
               </p>
             </div>
             <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Ready</p>
-              <p className="mt-3 text-base font-medium text-[var(--text-primary)]">{selectedCount} selected rows</p>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Ready', '準備')}</p>
+              <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
+                {tr(`${selectedCount} selected rows`, `${selectedCount} 行を選択中`)}
+              </p>
             </div>
           </div>
         </Panel>
@@ -749,17 +854,17 @@ export default function App() {
         <Panel className="p-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Recent</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Latest updates</h2>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Recent', '最近')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Latest updates', '最新の更新')}</h2>
             </div>
             <button onClick={() => setActivityOpen(true)} className="secondary-button">
-              Open
+              {tr('Open', '開く')}
             </button>
           </div>
 
           {downloadArtifact && (
             <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50/80 p-5 dark:border-emerald-900/60 dark:bg-emerald-950/25">
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-200">Processed workbook ready</p>
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-200">{tr('Processed workbook ready', '処理済みブックの準備完了')}</p>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">{downloadArtifact.filename}</p>
               <a
                 href={downloadArtifact.url}
@@ -767,7 +872,7 @@ export default function App() {
                 rel="noreferrer"
                 className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-emerald-700 transition hover:text-emerald-800 dark:text-emerald-200"
               >
-                Download workbook
+                {tr('Download workbook', 'ブックをダウンロード')}
                 <ArrowRight size={15} />
               </a>
             </div>
@@ -777,7 +882,7 @@ export default function App() {
             {recentLogs.map((log, index) => (
               <div key={`${log.timestamp}-${index}`} className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4">
                 <div className="flex items-center justify-between gap-4">
-                  <p className="text-sm font-medium text-[var(--text-primary)]">{log.message}</p>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">{localize(log.message)}</p>
                   <span className="text-xs text-[var(--text-tertiary)]">{log.timestamp}</span>
                 </div>
               </div>
@@ -792,16 +897,15 @@ export default function App() {
     <div className={workflowShellClass}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
-          {!embedMode && (
-            <button onClick={() => setView('home')} className="secondary-button">
-              Home
-            </button>
-          )}
+          <BackButton label={tr('Back', '戻る')} onClick={goBack} />
           <div>
-            <p className="text-sm font-medium text-[var(--text-tertiary)]">Workflow</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Review before you sync.</h1>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Workflow', 'ワークフロー')}</p>
+            <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">{tr('Review before you sync.', '同期前に確認。')}</h1>
             <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
-              Choose the page, add the workbook, review the rows, then send one clean update to Notion.
+              {tr(
+                'Choose the page, add the workbook, review the rows, then send one clean update to Notion.',
+                'ページを選び、ブックを追加し、行を確認してから、整った更新を Notion に送ります。',
+              )}
             </p>
           </div>
         </div>
@@ -809,7 +913,7 @@ export default function App() {
         <div className="flex items-center gap-3">
           <div className="status-pill">
             <span className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-            {status}
+            {localize(status)}
           </div>
         </div>
       </div>
@@ -826,7 +930,7 @@ export default function App() {
           } as const;
 
           return (
-            <div key={step.label} className={`rounded-[24px] border px-4 py-4 transition-all ${stateClasses[step.state]}`}>
+            <div key={step.label.en} className={`rounded-[24px] border px-4 py-4 transition-all ${stateClasses[step.state]}`}>
               <div className="flex items-center gap-3">
                 <div
                   className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${
@@ -840,9 +944,9 @@ export default function App() {
                   {step.state === 'complete' ? <Check size={16} /> : index + 1}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold">{step.label}</p>
+                  <p className="text-sm font-semibold">{localize(step.label)}</p>
                   <p className={`text-xs ${step.state === 'complete' ? 'text-white/72 dark:text-slate-700' : 'text-[var(--text-secondary)]'}`}>
-                    {step.detail}
+                    {localize(step.detail)}
                   </p>
                 </div>
               </div>
@@ -855,14 +959,14 @@ export default function App() {
         <div className="space-y-6">
           <Panel className="p-6">
             <div className="mb-5">
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">1. Choose page</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Calendar</h2>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('1. Choose page', '1. ページを選択')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Calendar', 'カレンダー')}</h2>
             </div>
 
             <div className="space-y-3">
               {calendarPages.length === 0 ? (
                 <div className="rounded-[22px] border border-dashed border-[color:var(--line)] px-4 py-8 text-center text-sm text-[var(--text-secondary)]">
-                  Loading pages...
+                  {tr('Loading pages...', 'ページを読み込み中...')}
                 </div>
               ) : (
                 calendarPages.map((page) => (
@@ -892,10 +996,10 @@ export default function App() {
             </div>
           </Panel>
 
-          <Panel className="p-6">
-            <div className="mb-5">
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">2. Upload file</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Workbook</h2>
+        <Panel className="p-6">
+          <div className="mb-5">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('2. Upload file', '2. ファイルをアップロード')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Workbook', 'ブック')}</h2>
             </div>
 
             {canUseNativeFilePicker ? (
@@ -928,10 +1032,12 @@ export default function App() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-base font-medium text-[var(--text-primary)]">
-                        {selectedFile ?? 'Choose Excel file'}
+                        {selectedFile ?? tr('Choose Excel file', 'Excelファイルを選択')}
                       </p>
                       <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                        {selectedFile ? 'Tap to replace the current workbook.' : 'One workbook at a time.'}
+                        {selectedFile
+                          ? tr('Tap to replace the current workbook.', 'タップして現在のブックを置き換えます。')
+                          : tr('One workbook at a time.', '一度に扱えるブックは1つです。')}
                       </p>
                     </div>
                   </div>
@@ -965,10 +1071,12 @@ export default function App() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-base font-medium text-[var(--text-primary)]">
-                      {selectedFile ?? 'Choose Excel file'}
+                      {selectedFile ?? tr('Choose Excel file', 'Excelファイルを選択')}
                     </p>
                     <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                      {selectedFile ? 'Tap to replace the current workbook.' : 'Tap here to open the system file picker.'}
+                      {selectedFile
+                        ? tr('Tap to replace the current workbook.', 'タップして現在のブックを置き換えます。')
+                        : tr('Tap here to open the system file picker.', 'タップしてシステムのファイルピッカーを開きます。')}
                     </p>
                   </div>
                 </div>
@@ -978,7 +1086,7 @@ export default function App() {
             {(embedMode || iosDevice) && (
               <div className="mt-4 flex items-start gap-3 rounded-[22px] border border-[color:var(--line)] bg-white/45 px-4 py-3 text-sm text-[var(--text-secondary)] dark:bg-white/4">
                 <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                <p>Embedded and iPad views use manual download after sync.</p>
+                <p>{tr('Embedded and iPad views use manual download after sync.', '埋め込み表示と iPad 表示では、同期後に手動ダウンロードを使用します。')}</p>
               </div>
             )}
           </Panel>
@@ -987,10 +1095,12 @@ export default function App() {
         <Panel className="p-6 md:p-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">3. Review</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Products</h2>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('3. Review', '3. 確認')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Products', '製品')}</h2>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                {products.length ? `${selectedCount} rows selected for sync.` : 'Load a workbook to review the rows.'}
+                {products.length
+                  ? tr(`${selectedCount} rows selected for sync.`, `${selectedCount} 行を同期対象に選択中です。`)
+                  : tr('Load a workbook to review the rows.', '行を確認するにはブックを読み込んでください。')}
               </p>
             </div>
 
@@ -1002,7 +1112,7 @@ export default function App() {
                     type="text"
                     value={reviewQuery}
                     onChange={(event) => setReviewQuery(event.target.value)}
-                    placeholder="Search parts"
+                    placeholder={tr('Search parts', '部品を検索')}
                     className="w-full rounded-full border border-[color:var(--line)] bg-white/68 py-2 pl-10 pr-4 text-sm text-[var(--text-primary)] outline-none transition focus:border-sky-300 dark:bg-white/6 md:w-64"
                   />
                 </div>
@@ -1013,7 +1123,9 @@ export default function App() {
                   }}
                   className="secondary-button"
                 >
-                  {products.every((product) => product.selected) && products.length > 0 ? 'Clear all' : 'Select all'}
+                  {products.every((product) => product.selected) && products.length > 0
+                    ? tr('Clear all', 'すべて解除')
+                    : tr('Select all', 'すべて選択')}
                 </button>
               </div>
             )}
@@ -1025,17 +1137,17 @@ export default function App() {
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300">
                   <FileSpreadsheet size={24} />
                 </div>
-                <h3 className="text-xl font-semibold tracking-[-0.03em]">Start with a page and a workbook</h3>
+                <h3 className="text-xl font-semibold tracking-[-0.03em]">{tr('Start with a page and a workbook', 'ページとブックから開始')}</h3>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  The review stays quiet until the essentials are ready.
+                  {tr('The review stays quiet until the essentials are ready.', '必要なものが揃うまで、確認画面は静かに待機します。')}
                 </p>
               </div>
             </div>
           ) : filteredProducts.length === 0 ? (
             <div className="mt-8 flex min-h-[320px] items-center justify-center rounded-[28px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
               <div className="max-w-sm space-y-3">
-                <h3 className="text-xl font-semibold tracking-[-0.03em]">No matching rows</h3>
-                <p className="text-sm text-[var(--text-secondary)]">Try a different search term or clear the filter.</p>
+                <h3 className="text-xl font-semibold tracking-[-0.03em]">{tr('No matching rows', '一致する行がありません')}</h3>
+                <p className="text-sm text-[var(--text-secondary)]">{tr('Try a different search term or clear the filter.', '別の検索語を試すか、フィルターを解除してください。')}</p>
               </div>
             </div>
           ) : (
@@ -1048,10 +1160,10 @@ export default function App() {
                       <div>
                         <p className="text-sm font-medium text-[var(--text-tertiary)]">{color}</p>
                         <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                          {items.length} parts
+                          {tr(`${items.length} parts`, `${items.length} 点`)}
                         </h3>
                       </div>
-                      <div className="status-pill">{groupSelected} selected</div>
+                      <div className="status-pill">{tr(`${groupSelected} selected`, `${groupSelected} 件選択`)}</div>
                     </div>
 
                     <div className="space-y-3">
@@ -1079,7 +1191,7 @@ export default function App() {
                                     ? 'bg-sky-600 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)]'
                                     : 'border border-[color:var(--line)] bg-white/90 text-transparent dark:bg-white/6'
                                 }`}
-                                aria-label={`Toggle ${product.part}`}
+                                aria-label={tr(`Toggle ${product.part}`, `${product.part} を切り替え`)}
                               >
                                 <Check size={16} strokeWidth={3} />
                               </button>
@@ -1094,14 +1206,14 @@ export default function App() {
                                   <h4 className="text-base font-medium text-[var(--text-primary)]">{product.part}</h4>
                                 </div>
                                 <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                                  Qty {product.qty} • C/T {product.ct}s • {product.date}
+                                  {tr(`Qty ${product.qty} • C/T ${product.ct}s • ${product.date}`, `数量 ${product.qty} • C/T ${product.ct}秒 • ${product.date}`)}
                                 </p>
                               </div>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 md:justify-end">
                               <RowToggle
-                                label="Mark"
+                                label={tr('Mark', '強調')}
                                 tone="success"
                                 active={product.colorAccent}
                                 onClick={() =>
@@ -1115,7 +1227,7 @@ export default function App() {
                                 }
                               />
                               <RowToggle
-                                label="Replace"
+                                label={tr('Replace', '上書き')}
                                 tone="warning"
                                 active={product.override}
                                 onClick={() =>
@@ -1144,18 +1256,18 @@ export default function App() {
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid gap-3 md:grid-cols-3 xl:flex-1">
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
-                <p className="text-xs font-medium text-[var(--text-tertiary)]">Page</p>
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Page', 'ページ')}</p>
                 <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
-                  {selectedCalendar?.title ?? 'Choose a page'}
+                  {selectedCalendar?.title ?? tr('Choose a page', 'ページを選択')}
                 </p>
               </div>
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
-                <p className="text-xs font-medium text-[var(--text-tertiary)]">Workbook</p>
-                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{selectedFile ?? 'Choose a file'}</p>
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Workbook', 'ブック')}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{selectedFile ?? tr('Choose a file', 'ファイルを選択')}</p>
               </div>
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
-                <p className="text-xs font-medium text-[var(--text-tertiary)]">Selection</p>
-                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{selectedCount} ready to sync</p>
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Selection', '選択')}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{tr(`${selectedCount} ready to sync`, `${selectedCount} 件が同期可能`)}</p>
               </div>
             </div>
 
@@ -1167,7 +1279,7 @@ export default function App() {
                   rel="noreferrer"
                   className="secondary-button justify-center"
                 >
-                  Download workbook
+                  {tr('Download workbook', 'ブックをダウンロード')}
                 </a>
               )}
               <button
@@ -1176,7 +1288,7 @@ export default function App() {
                 className="primary-button justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
               >
                 {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-                Sync to Notion
+                {tr('Sync to Notion', 'Notion に同期')}
               </button>
             </div>
           </div>
@@ -1188,16 +1300,15 @@ export default function App() {
   const DailyGeneratorView = () => (
     <div className={pageStackClass}>
       <div className="space-y-3">
-        {!embedMode && (
-          <button onClick={() => setView('home')} className="secondary-button">
-            Home
-          </button>
-        )}
+        <BackButton label={tr('Back', '戻る')} onClick={goBack} />
         <div>
-          <p className="text-sm font-medium text-[var(--text-tertiary)]">Daily Generator</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Run the daily plan in one pass.</h1>
+          <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Daily Generator', '日次生成')}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">{tr('Run the daily plan in one pass.', '日次計画を一度で実行。')}</h1>
           <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
-            Choose the target date, keep the defaults, and let the generator prepare the Notion update.
+            {tr(
+              'Choose the target date, keep the defaults, and let the generator prepare the Notion update.',
+              '対象日を選び、標準設定のまま、ジェネレーターに Notion 更新の準備を任せます。',
+            )}
           </p>
         </div>
       </div>
@@ -1205,8 +1316,8 @@ export default function App() {
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <Panel className="p-6">
           <div className="mb-5">
-            <p className="text-sm font-medium text-[var(--text-tertiary)]">Date</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Choose a target</h2>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Date', '日付')}</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Choose a target', '対象を選択')}</h2>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2">
@@ -1230,19 +1341,19 @@ export default function App() {
         <Panel strong className="p-6">
           <div className="space-y-6">
             <div>
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Run</p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Automation</h2>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Run', '実行')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Automation', '自動化')}</h2>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                Highlights stay on. Duplicate rows stay out.
+                {tr('Highlights stay on. Duplicate rows stay out.', 'ハイライトは維持し、重複行は除外します。')}
               </p>
             </div>
 
             <div className="space-y-3">
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/58 px-4 py-4 dark:bg-white/6">
-                <p className="text-sm font-medium text-[var(--text-primary)]">Auto-highlight workbook</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{tr('Auto-highlight workbook', 'ブックを自動ハイライト')}</p>
               </div>
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/58 px-4 py-4 dark:bg-white/6">
-                <p className="text-sm font-medium text-[var(--text-primary)]">Skip highlighted rows</p>
+                <p className="text-sm font-medium text-[var(--text-primary)]">{tr('Skip highlighted rows', 'ハイライト済みの行をスキップ')}</p>
               </div>
             </div>
 
@@ -1252,7 +1363,7 @@ export default function App() {
               className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
             >
               {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} />}
-              Run generator
+              {tr('Run generator', 'ジェネレーターを実行')}
             </button>
           </div>
         </Panel>
@@ -1262,8 +1373,8 @@ export default function App() {
         <Panel className="p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">Progress</p>
-              <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em]">Processing workbook</h3>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Progress', '進行状況')}</p>
+              <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em]">{tr('Processing workbook', 'ブックを処理中')}</h3>
             </div>
             <span className="text-sm font-medium text-[var(--text-secondary)]">{progress}%</span>
           </div>
@@ -1282,28 +1393,31 @@ export default function App() {
 
   const SettingsView = () => (
     <div className={pageStackClass}>
-      <div>
-        <p className="text-sm font-medium text-[var(--text-tertiary)]">Settings</p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Quiet defaults, simple controls.</h1>
-        <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
-          Keep the connection visible and the interface comfortable.
-        </p>
+      <div className="space-y-3">
+        <BackButton label={tr('Back', '戻る')} onClick={goBack} />
+        <div>
+          <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Settings', '設定')}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">{tr('Quiet defaults, simple controls.', '静かな初期値、シンプルな操作。')}</h1>
+          <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
+            {tr('Keep the connection visible and the interface comfortable.', '接続状態を見やすく、操作感を快適に保ちます。')}
+          </p>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel className="p-6">
           <div>
-            <p className="text-sm font-medium text-[var(--text-tertiary)]">Connection</p>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Connection', '接続')}</p>
             <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Notion</h2>
           </div>
 
           <div className="mt-6 space-y-4">
             <div className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4">
-              <p className="text-xs font-medium text-[var(--text-tertiary)]">Integration token</p>
+              <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Integration token', '連携トークン')}</p>
               <p className="mt-2 text-sm text-[var(--text-primary)]">secret_xxxxxxxxxxxxxxxx</p>
             </div>
             <div className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4">
-              <p className="text-xs font-medium text-[var(--text-tertiary)]">Calendar database</p>
+              <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Calendar database', 'カレンダーデータベース')}</p>
               <p className="mt-2 text-sm text-[var(--text-primary)]">db_xxxxxxxxxxxxxxxx</p>
             </div>
           </div>
@@ -1311,15 +1425,26 @@ export default function App() {
 
         <Panel className="p-6">
           <div>
-            <p className="text-sm font-medium text-[var(--text-tertiary)]">Appearance</p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Display</h2>
+            <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Appearance', '表示')}</p>
+            <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Display', '画面')}</h2>
           </div>
 
-          <div className="mt-6 rounded-[24px] border border-[color:var(--line)] bg-white/55 px-5 py-5 dark:bg-white/4">
+          <div className="mt-6 space-y-4">
+            <div className="rounded-[24px] border border-[color:var(--line)] bg-white/55 px-5 py-5 dark:bg-white/4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-base font-medium text-[var(--text-primary)]">{tr('Language', '言語')}</p>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">{tr('Switch between Japanese and English.', '日本語と英語を切り替えます。')}</p>
+                </div>
+                <LanguageToggle language={language} onChange={handleLanguageChange} />
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-[color:var(--line)] bg-white/55 px-5 py-5 dark:bg-white/4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-base font-medium text-[var(--text-primary)]">Dark mode</p>
-                <p className="mt-1 text-sm text-[var(--text-secondary)]">Switch the workspace tone.</p>
+                <p className="text-base font-medium text-[var(--text-primary)]">{tr('Dark mode', 'ダークモード')}</p>
+                <p className="mt-1 text-sm text-[var(--text-secondary)]">{tr('Switch the workspace tone.', 'ワークスペースのトーンを切り替えます。')}</p>
               </div>
               <button
                 onClick={toggleTheme}
@@ -1335,6 +1460,7 @@ export default function App() {
               </button>
             </div>
           </div>
+          </div>
         </Panel>
       </div>
     </div>
@@ -1348,7 +1474,7 @@ export default function App() {
             {sidebarOpen && (
               <>
                 <motion.button
-                  aria-label="Close sidebar"
+                  aria-label={tr('Close sidebar', 'サイドバーを閉じる')}
                   initial={reducedMotion ? false : {opacity: 0}}
                   animate={{opacity: 1}}
                   exit={reducedMotion ? {opacity: 1} : {opacity: 0}}
@@ -1370,31 +1496,31 @@ export default function App() {
                           P
                         </div>
                         <div>
-                          <p className="text-base font-semibold tracking-[-0.03em]">Painting Team</p>
-                          <p className="text-sm text-[var(--text-secondary)]">Workflow utilities</p>
+                          <p className="text-base font-semibold tracking-[-0.03em]">{tr('Painting Team', '塗装チーム')}</p>
+                          <p className="text-sm text-[var(--text-secondary)]">{tr('Workflow utilities', 'ワークフローツール')}</p>
                         </div>
                       </div>
                     </div>
 
                     <nav className="mt-6 space-y-2">
-                      <NavItem icon={LayoutDashboard} label="Home" active={view === 'home'} onClick={() => setView('home')} />
+                      <NavItem icon={LayoutDashboard} label={tr('Home', 'ホーム')} active={view === 'home'} onClick={() => navigateTo('home')} />
                       <NavItem
                         icon={RefreshCw}
-                        label="Workflow"
+                        label={tr('Workflow', 'ワークフロー')}
                         active={view === 'workflow-manager'}
-                        onClick={() => setView('workflow-manager')}
+                        onClick={() => navigateTo('workflow-manager')}
                       />
                       <NavItem
                         icon={Play}
-                        label="Daily Generator"
+                        label={tr('Daily Generator', '日次生成')}
                         active={view === 'daily-generator'}
-                        onClick={() => setView('daily-generator')}
+                        onClick={() => navigateTo('daily-generator')}
                       />
                       <NavItem
                         icon={Settings}
-                        label="Settings"
+                        label={tr('Settings', '設定')}
                         active={view === 'settings'}
-                        onClick={() => setView('settings')}
+                        onClick={() => navigateTo('settings')}
                       />
                     </nav>
 
@@ -1404,8 +1530,8 @@ export default function App() {
                           <Database size={18} />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">Notion connected</p>
-                          <p className="text-sm text-[var(--text-secondary)]">{status}</p>
+                          <p className="text-sm font-medium text-[var(--text-primary)]">{tr('Notion connected', 'Notion 接続済み')}</p>
+                          <p className="text-sm text-[var(--text-secondary)]">{localize(status)}</p>
                         </div>
                       </div>
                     </div>
@@ -1421,15 +1547,15 @@ export default function App() {
             <header className={shellHeaderClass}>
               <div className="flex items-center gap-3 md:gap-4">
                 {!embedMode && (
-                  <button onClick={() => setSidebarOpen((prev) => !prev)} className="icon-button" aria-label="Toggle sidebar">
+                  <button onClick={() => setSidebarOpen((prev) => !prev)} className="icon-button" aria-label={tr('Toggle sidebar', 'サイドバーを切り替え')}>
                     {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
                   </button>
                 )}
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                    <span>Painting Team</span>
+                    <span>{tr('Painting Team', '塗装チーム')}</span>
                     <ChevronRight size={14} />
-                    <span className="truncate text-[var(--text-primary)]">{VIEW_LABELS[view]}</span>
+                    <span className="truncate text-[var(--text-primary)]">{localize(VIEW_LABELS[view])}</span>
                   </div>
                 </div>
               </div>
@@ -1437,12 +1563,22 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <div className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/55 px-3 py-1.5 text-sm text-[var(--text-secondary)] dark:bg-white/5 md:flex">
                   <span className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                  {status}
+                  {localize(status)}
+                </div>
+                <button
+                  onClick={() => handleLanguageChange(language === 'ja' ? 'en' : 'ja')}
+                  className="secondary-button px-3 py-2 md:hidden"
+                  aria-label={tr('Switch language', '言語を切り替え')}
+                >
+                  {language === 'ja' ? 'EN' : '日本語'}
+                </button>
+                <div className="hidden md:block">
+                  <LanguageToggle language={language} onChange={handleLanguageChange} />
                 </div>
                 <button onClick={() => setActivityOpen(true)} className="secondary-button hidden md:inline-flex">
-                  Activity
+                  {tr('Activity', 'アクティビティ')}
                 </button>
-                <button onClick={toggleTheme} className="icon-button" aria-label="Toggle theme">
+                <button onClick={toggleTheme} className="icon-button" aria-label={tr('Toggle theme', 'テーマを切り替え')}>
                   {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
                 </button>
               </div>
@@ -1472,9 +1608,10 @@ export default function App() {
         open={activityOpen}
         onClose={() => setActivityOpen(false)}
         logs={logs}
-        status={status}
+        status={localize(status)}
         isSyncing={isSyncing}
         reducedMotion={reducedMotion}
+        language={language}
       />
     </div>
   );
