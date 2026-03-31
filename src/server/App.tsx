@@ -640,20 +640,39 @@ export default function App() {
     },
   ];
 
+  const pageStackClass = embedMode ? 'space-y-6 pb-10' : 'space-y-8 pb-16';
+  const heroPanelClass = embedMode ? 'relative p-6 md:p-8' : 'relative p-8 md:p-12 lg:p-14';
+  const heroCopyClass = embedMode ? 'relative max-w-2xl space-y-5' : 'relative max-w-3xl space-y-6';
+  const heroTitleClass = embedMode
+    ? 'max-w-2xl text-3xl font-semibold tracking-[-0.06em] text-[var(--text-primary)] md:text-5xl'
+    : 'max-w-2xl text-4xl font-semibold tracking-[-0.06em] text-[var(--text-primary)] md:text-6xl';
+  const heroBodyClass = embedMode
+    ? 'max-w-xl text-sm text-[var(--text-secondary)] md:text-base'
+    : 'max-w-xl text-base text-[var(--text-secondary)] md:text-lg';
+  const shellPaddingClass = embedMode ? 'px-3 pb-5 pt-3 md:px-4' : 'px-4 pb-8 pt-4 md:px-6 lg:px-8';
+  const shellHeaderClass = embedMode
+    ? 'glass-toolbar sticky top-3 z-20 flex items-center justify-between rounded-[22px] px-3 py-2.5 md:px-4'
+    : 'glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5';
+  const contentWidthClass = embedMode ? 'mx-auto mt-4 max-w-[980px]' : 'mx-auto mt-6 max-w-[1200px]';
+  const embedHomeGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[1.15fr_0.85fr]' : 'grid gap-6 lg:grid-cols-[1.2fr_0.8fr]';
+  const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
+  const workflowGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]' : 'grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]';
+  const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
+
   const HomeView = () => (
-    <div className="space-y-8 pb-16">
-      <Panel strong className="relative p-8 md:p-12 lg:p-14">
+    <div className={pageStackClass}>
+      <Panel strong className={heroPanelClass}>
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.18),transparent_34%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.7),transparent_38%)] dark:bg-[radial-gradient(circle_at_top_right,rgba(96,165,250,0.16),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(148,163,184,0.08),transparent_40%)]" />
-        <div className="relative max-w-3xl space-y-6">
+        <div className={heroCopyClass}>
           <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/70 px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] shadow-sm dark:border-white/10 dark:bg-white/6">
             <LayoutDashboard size={14} />
             Painting Team
           </div>
           <div className="space-y-4">
-            <h1 className="max-w-2xl text-4xl font-semibold tracking-[-0.06em] text-[var(--text-primary)] md:text-6xl">
+            <h1 className={heroTitleClass}>
               Quiet control for the daily plan.
             </h1>
-            <p className="max-w-xl text-base text-[var(--text-secondary)] md:text-lg">
+            <p className={heroBodyClass}>
               Review the workbook, keep only the context that matters, and sync to Notion without the dashboard noise.
             </p>
           </div>
@@ -688,7 +707,7 @@ export default function App() {
         </div>
       </Panel>
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div className={embedHomeGridClass}>
         <Panel className="p-6 md:p-8">
           <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
@@ -766,7 +785,7 @@ export default function App() {
   );
 
   const WorkflowManagerView = () => (
-    <div className="space-y-6 pb-24">
+    <div className={workflowShellClass}>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           {!embedMode && (
@@ -828,7 +847,7 @@ export default function App() {
         })}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
+      <div className={workflowGridClass}>
         <div className="space-y-6">
           <Panel className="p-6">
             <div className="mb-5">
@@ -1076,7 +1095,7 @@ export default function App() {
         </Panel>
       </div>
 
-      <div className="sticky bottom-4 z-10 pt-4">
+      <div className={actionBarClass}>
         <div className="glass-toolbar rounded-[30px] p-4 md:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid gap-3 md:grid-cols-3 xl:flex-1">
@@ -1123,7 +1142,7 @@ export default function App() {
   );
 
   const DailyGeneratorView = () => (
-    <div className="space-y-8 pb-16">
+    <div className={pageStackClass}>
       <div className="space-y-3">
         {!embedMode && (
           <button onClick={() => setView('home')} className="secondary-button">
@@ -1218,7 +1237,7 @@ export default function App() {
   );
 
   const SettingsView = () => (
-    <div className="space-y-8 pb-16">
+    <div className={pageStackClass}>
       <div>
         <p className="text-sm font-medium text-[var(--text-tertiary)]">Settings</p>
         <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">Quiet defaults, simple controls.</h1>
@@ -1354,8 +1373,8 @@ export default function App() {
         )}
 
         <main className="min-w-0 flex-1">
-          <div className="px-4 pb-8 pt-4 md:px-6 lg:px-8">
-            <header className="glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5">
+          <div className={shellPaddingClass}>
+            <header className={shellHeaderClass}>
               <div className="flex items-center gap-3 md:gap-4">
                 {!embedMode && (
                   <button onClick={() => setSidebarOpen((prev) => !prev)} className="icon-button" aria-label="Toggle sidebar">
@@ -1385,7 +1404,7 @@ export default function App() {
               </div>
             </header>
 
-            <div className="mx-auto mt-6 max-w-[1200px]">
+            <div className={contentWidthClass}>
               <AnimatePresence mode="wait">
                 <motion.div
                   key={view}
