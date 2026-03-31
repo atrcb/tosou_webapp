@@ -379,7 +379,8 @@ export default function App() {
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement> | null, manualFile?: File) => {
-    const file = manualFile || (event?.target as HTMLInputElement)?.files?.[0];
+    const inputElement = event?.target as HTMLInputElement | undefined;
+    const file = manualFile || inputElement?.files?.[0];
     if (!file) return;
 
     if (!manualFile) {
@@ -409,6 +410,9 @@ export default function App() {
       setStatus('Upload failed');
     } finally {
       setIsSyncing(false);
+      if (inputElement) {
+        inputElement.value = '';
+      }
     }
   };
 
@@ -894,42 +898,82 @@ export default function App() {
               <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">Workbook</h2>
             </div>
 
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept=".xlsx,.xls"
-              onChange={handleFileChange}
-            />
+            {canUseNativeFilePicker ? (
+              <>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange}
+                />
 
-            <button
-              onClick={openNativeSelector}
-              className={`w-full rounded-[26px] border border-dashed p-6 text-left transition-all ${
-                selectedFile
-                  ? 'border-emerald-200 bg-emerald-50/75 shadow-[0_18px_36px_rgba(16,185,129,0.12)] dark:border-emerald-900/50 dark:bg-emerald-950/22'
-                  : 'border-[color:var(--line-strong)] bg-white/50 hover:bg-white/72 dark:bg-white/4 dark:hover:bg-white/8'
-              }`}
-            >
-              <div className="flex items-center gap-4">
-                <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
+                <button
+                  onClick={openNativeSelector}
+                  className={`w-full rounded-[26px] border border-dashed p-6 text-left transition-all ${
                     selectedFile
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                      ? 'border-emerald-200 bg-emerald-50/75 shadow-[0_18px_36px_rgba(16,185,129,0.12)] dark:border-emerald-900/50 dark:bg-emerald-950/22'
+                      : 'border-[color:var(--line-strong)] bg-white/50 hover:bg-white/72 dark:bg-white/4 dark:hover:bg-white/8'
                   }`}
                 >
-                  {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
+                        selectedFile
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                      }`}
+                    >
+                      {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-medium text-[var(--text-primary)]">
+                        {selectedFile ?? 'Choose Excel file'}
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                        {selectedFile ? 'Tap to replace the current workbook.' : 'One workbook at a time.'}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </>
+            ) : (
+              <label
+                className={`relative block w-full cursor-pointer rounded-[26px] border border-dashed p-6 text-left transition-all ${
+                  selectedFile
+                    ? 'border-emerald-200 bg-emerald-50/75 shadow-[0_18px_36px_rgba(16,185,129,0.12)] dark:border-emerald-900/50 dark:bg-emerald-950/22'
+                    : 'border-[color:var(--line-strong)] bg-white/50 hover:bg-white/72 dark:bg-white/4 dark:hover:bg-white/8'
+                }`}
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange}
+                />
+
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
+                      selectedFile
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                    }`}
+                  >
+                    {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-medium text-[var(--text-primary)]">
+                      {selectedFile ?? 'Choose Excel file'}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      {selectedFile ? 'Tap to replace the current workbook.' : 'Tap here to open the system file picker.'}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-base font-medium text-[var(--text-primary)]">
-                    {selectedFile ?? 'Choose Excel file'}
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                    {selectedFile ? 'Tap to replace the current workbook.' : 'One workbook at a time.'}
-                  </p>
-                </div>
-              </div>
-            </button>
+              </label>
+            )}
 
             {(embedMode || iosDevice) && (
               <div className="mt-4 flex items-start gap-3 rounded-[22px] border border-[color:var(--line)] bg-white/45 px-4 py-3 text-sm text-[var(--text-secondary)] dark:bg-white/4">
