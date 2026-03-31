@@ -1159,20 +1159,20 @@ export default function App() {
           ) : (
             <div className="mt-8 space-y-5">
               {groupedProducts.map(([color, items]) => {
-                const groupSelected = items.filter((item) => item.selected).length;
+                const groupDate = items[0]?.date ?? '--/--';
                 return (
                   <div key={color} className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-[0_18px_32px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/26">
-                    <div className="flex items-center justify-between gap-4 px-2 pb-4">
-                      <div>
+                    <div className="px-2 pb-4">
+                      <div className="flex flex-wrap items-center gap-2">
                         <div className="inline-flex items-center rounded-full bg-slate-900 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-white shadow-sm dark:bg-slate-100 dark:text-slate-900">
                           {color}
                         </div>
-                        <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                          {tr(`${items.length} parts`, `${items.length} 点`)}
-                        </h3>
-                      </div>
-                      <div className="status-pill border-slate-200 bg-white/90 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
-                        {tr(`${groupSelected} selected`, `${groupSelected} 件選択`)}
+                        <div className="status-pill border-slate-200 bg-white/90 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                          {tr(`${items.length} items`, `${items.length} 点`)}
+                        </div>
+                        <div className="status-pill border-slate-200 bg-white/90 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                          {tr(`Date - ${groupDate}`, `日付 - ${groupDate}`)}
+                        </div>
                       </div>
                     </div>
 
@@ -1214,25 +1214,11 @@ export default function App() {
                                     </span>
                                   )}
                                   <h4 className="text-lg font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">{product.part}</h4>
-                                </div>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                  <div className="rounded-[16px] border border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/90">
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                                      {tr('Qty', '数量')}
-                                    </p>
-                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-50">{product.qty}</p>
+                                  <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
+                                    {tr(`Amount ${product.qty}`, `数量 ${product.qty}`)}
                                   </div>
-                                  <div className="rounded-[16px] border border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/90">
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">C/T</p>
-                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-50">
-                                      {tr(`${product.ct}s`, `${product.ct}秒`)}
-                                    </p>
-                                  </div>
-                                  <div className="rounded-[16px] border border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/90">
-                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
-                                      {tr('Date', '日付')}
-                                    </p>
-                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-50">{product.date}</p>
+                                  <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
+                                    {tr(`C/T ${product.ct}s`, `C/T ${product.ct}秒`)}
                                   </div>
                                 </div>
                               </div>
