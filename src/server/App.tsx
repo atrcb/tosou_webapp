@@ -225,12 +225,14 @@ const ActivityDrawer = ({
   logs,
   status,
   isSyncing,
+  reducedMotion,
 }: {
   open: boolean;
   onClose: () => void;
   logs: LogEntry[];
   status: string;
   isSyncing: boolean;
+  reducedMotion: boolean;
 }) => (
   <AnimatePresence>
     {open && (
@@ -238,16 +240,17 @@ const ActivityDrawer = ({
         <motion.button
           aria-label="Close activity panel"
           className="fixed inset-0 z-40 bg-slate-950/16 backdrop-blur-[2px]"
-          initial={{opacity: 0}}
+          initial={reducedMotion ? false : {opacity: 0}}
           animate={{opacity: 1}}
-          exit={{opacity: 0}}
+          exit={reducedMotion ? {opacity: 1} : {opacity: 0}}
+          transition={{duration: reducedMotion ? 0 : 0.18}}
           onClick={onClose}
         />
         <motion.aside
-          initial={{opacity: 0, x: 28}}
+          initial={reducedMotion ? false : {opacity: 0, x: 28}}
           animate={{opacity: 1, x: 0}}
-          exit={{opacity: 0, x: 28}}
-          transition={{duration: 0.18}}
+          exit={reducedMotion ? {opacity: 1, x: 0} : {opacity: 0, x: 28}}
+          transition={{duration: reducedMotion ? 0 : 0.18}}
           className="fixed inset-y-4 right-4 z-50 w-[min(380px,calc(100vw-2rem))]"
         >
           <div className="app-panel-strong flex h-full flex-col rounded-[30px] p-5">
@@ -307,10 +310,11 @@ const ActivityDrawer = ({
 export default function App() {
   const embedMode = isEmbeddedMode();
   const iosDevice = isAppleMobileDevice();
-  const canUseNativeFilePicker = supportsNativeFilePicker() && (!embedMode || !iosDevice);
+  const reducedMotion = embedMode;
+  const canUseNativeFilePicker = supportsNativeFilePicker() && !embedMode && !iosDevice;
   const shouldAutoDownload = !embedMode && !iosDevice;
 
-  const [view, setView] = useState<View>(embedMode ? 'workflow-manager' : 'home');
+  const [view, setView] = useState<View>('home');
   const [theme, setTheme] = useState<Theme>('light');
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (embedMode || typeof window === 'undefined') return false;
@@ -1201,7 +1205,12 @@ export default function App() {
             <span className="text-sm font-medium text-[var(--text-secondary)]">{progress}%</span>
           </div>
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200/70 dark:bg-white/8">
-            <motion.div className="h-full bg-emerald-500" initial={{width: 0}} animate={{width: `${progress}%`}} />
+            <motion.div
+              className="h-full bg-emerald-500"
+              initial={reducedMotion ? false : {width: 0}}
+              animate={{width: `${progress}%`}}
+              transition={{duration: reducedMotion ? 0 : 0.2}}
+            />
           </div>
         </Panel>
       )}
@@ -1277,17 +1286,18 @@ export default function App() {
               <>
                 <motion.button
                   aria-label="Close sidebar"
-                  initial={{opacity: 0}}
+                  initial={reducedMotion ? false : {opacity: 0}}
                   animate={{opacity: 1}}
-                  exit={{opacity: 0}}
+                  exit={reducedMotion ? {opacity: 1} : {opacity: 0}}
+                  transition={{duration: reducedMotion ? 0 : 0.18}}
                   onClick={() => setSidebarOpen(false)}
                   className="fixed inset-0 z-30 bg-slate-950/12 backdrop-blur-[2px] lg:hidden"
                 />
                 <motion.aside
-                  initial={{opacity: 0, x: -24}}
+                  initial={reducedMotion ? false : {opacity: 0, x: -24}}
                   animate={{opacity: 1, x: 0}}
-                  exit={{opacity: 0, x: -24}}
-                  transition={{duration: 0.18}}
+                  exit={reducedMotion ? {opacity: 1, x: 0} : {opacity: 0, x: -24}}
+                  transition={{duration: reducedMotion ? 0 : 0.18}}
                   className="fixed inset-y-4 left-4 z-40 w-[280px] lg:static lg:inset-auto lg:z-0 lg:w-[300px] lg:flex-shrink-0 lg:px-4 lg:py-4"
                 >
                   <div className="app-panel-strong flex h-full flex-col rounded-[32px] p-4">
@@ -1379,10 +1389,10 @@ export default function App() {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={view}
-                  initial={{opacity: 0, y: 8}}
+                  initial={reducedMotion ? false : {opacity: 0, y: 8}}
                   animate={{opacity: 1, y: 0}}
-                  exit={{opacity: 0, y: -8}}
-                  transition={{duration: 0.18}}
+                  exit={reducedMotion ? {opacity: 1, y: 0} : {opacity: 0, y: -8}}
+                  transition={{duration: reducedMotion ? 0 : 0.18}}
                 >
                   {view === 'home' && <HomeView />}
                   {view === 'workflow-manager' && <WorkflowManagerView />}
@@ -1395,7 +1405,14 @@ export default function App() {
         </main>
       </div>
 
-      <ActivityDrawer open={activityOpen} onClose={() => setActivityOpen(false)} logs={logs} status={status} isSyncing={isSyncing} />
+      <ActivityDrawer
+        open={activityOpen}
+        onClose={() => setActivityOpen(false)}
+        logs={logs}
+        status={status}
+        isSyncing={isSyncing}
+        reducedMotion={reducedMotion}
+      />
     </div>
   );
 }

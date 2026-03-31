@@ -281,7 +281,7 @@ app.post('/api/embed-link', requireEmbedAdmin, (req, res) => {
       return res.status(400).json({ error: 'sub is required' });
     }
 
-    const requestedPath = String(req.body?.path || '/embed/');
+    const requestedPath = String(req.body?.path || '/embed-app/');
     const defaultScopes = requestedPath.startsWith('/embed-app') ? ['embed:read', 'embed:write'] : ['embed:read'];
     const requestedScopes = Array.isArray(req.body?.scopes) ? req.body.scopes : defaultScopes;
     const scopes = requestedScopes.filter((value: unknown) => typeof value === 'string' && value.trim().length > 0);
@@ -479,10 +479,9 @@ const shouldServeLiteEmbedApp = (req: express.Request): boolean => {
     return true;
   }
 
-  // Serve the lightweight app by default for Notion embeds. iPadOS often presents
-  // a desktop-class user agent, which makes server-side iOS detection unreliable.
-  // An explicit `?full=1` override keeps the richer desktop bundle available.
-  return true;
+  // Default to the shared React layout so embed URLs match the main app.
+  // Keep `?lite=1` available as a compatibility fallback for stricter webviews.
+  return false;
 };
 
 const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response) => {
