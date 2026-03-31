@@ -207,12 +207,12 @@ const RowToggle = ({
 }) => {
   const activeClasses =
     tone === 'success'
-      ? 'bg-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.28)]'
-      : 'bg-amber-500 text-white shadow-[0_12px_24px_rgba(245,158,11,0.24)]';
+      ? 'border border-emerald-600 bg-emerald-600 text-white shadow-[0_12px_24px_rgba(5,150,105,0.24)]'
+      : 'border border-amber-600 bg-amber-600 text-white shadow-[0_12px_24px_rgba(217,119,6,0.24)]';
   const idleClasses =
     tone === 'success'
-      ? 'bg-white/80 text-[var(--text-secondary)] hover:bg-emerald-50 hover:text-emerald-700 dark:bg-white/6 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-200'
-      : 'bg-white/80 text-[var(--text-secondary)] hover:bg-amber-50 hover:text-amber-700 dark:bg-white/6 dark:hover:bg-amber-950/30 dark:hover:text-amber-200';
+      ? 'border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200 dark:hover:bg-emerald-950/35'
+      : 'border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200 dark:hover:bg-amber-950/35';
 
   return (
     <button
@@ -759,7 +759,7 @@ export default function App() {
   const contentWidthClass = embedMode ? 'mx-auto mt-4 max-w-[980px]' : 'mx-auto mt-6 max-w-[1200px]';
   const embedHomeGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[1.15fr_0.85fr]' : 'grid gap-6 lg:grid-cols-[1.2fr_0.8fr]';
   const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
-  const workflowGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]' : 'grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]';
+  const workflowSetupGridClass = embedMode ? 'grid gap-5 xl:grid-cols-2 xl:items-stretch' : 'grid gap-6 xl:grid-cols-2 xl:items-stretch';
   const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
 
   const HomeView = () => (
@@ -955,9 +955,9 @@ export default function App() {
         })}
       </div>
 
-      <div className={workflowGridClass}>
-        <div className="space-y-6">
-          <Panel className="p-6">
+      <div className={workflowSetupGridClass}>
+        <Panel className="h-full p-6">
+          <div className="flex h-full flex-col">
             <div className="mb-5">
               <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('1. Choose page', '1. ページを選択')}</p>
               <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Calendar', 'カレンダー')}</h2>
@@ -994,15 +994,18 @@ export default function App() {
                 ))
               )}
             </div>
-          </Panel>
+          </div>
+        </Panel>
 
-        <Panel className="p-6">
-          <div className="mb-5">
+        <Panel className="h-full p-6">
+          <div className="flex h-full flex-col">
+            <div className="mb-5">
               <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('2. Upload file', '2. ファイルをアップロード')}</p>
               <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Workbook', 'ブック')}</h2>
             </div>
 
-            {canUseNativeFilePicker ? (
+            <div className="flex flex-1 flex-col">
+              {canUseNativeFilePicker ? (
               <>
                 <input
                   type="file"
@@ -1089,10 +1092,13 @@ export default function App() {
                 <p>{tr('Embedded and iPad views use manual download after sync.', '埋め込み表示と iPad 表示では、同期後に手動ダウンロードを使用します。')}</p>
               </div>
             )}
-          </Panel>
-        </div>
+            </div>
+          </div>
+        </Panel>
 
-        <Panel className="p-6 md:p-7">
+      </div>
+
+      <Panel className="p-6 md:p-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('3. Review', '3. 確認')}</p>
@@ -1155,15 +1161,17 @@ export default function App() {
               {groupedProducts.map(([color, items]) => {
                 const groupSelected = items.filter((item) => item.selected).length;
                 return (
-                  <div key={color} className="rounded-[28px] border border-[color:var(--line)] bg-white/46 p-4 dark:bg-white/4">
+                  <div key={color} className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-[0_18px_32px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/26">
                     <div className="flex items-center justify-between gap-4 px-2 pb-4">
                       <div>
-                        <p className="text-sm font-medium text-[var(--text-tertiary)]">{color}</p>
+                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">{color}</p>
                         <h3 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
                           {tr(`${items.length} parts`, `${items.length} 点`)}
                         </h3>
                       </div>
-                      <div className="status-pill">{tr(`${groupSelected} selected`, `${groupSelected} 件選択`)}</div>
+                      <div className="status-pill border-slate-200 bg-white/90 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                        {tr(`${groupSelected} selected`, `${groupSelected} 件選択`)}
+                      </div>
                     </div>
 
                     <div className="space-y-3">
@@ -1172,8 +1180,8 @@ export default function App() {
                           key={product.id}
                           className={`rounded-[24px] border px-4 py-4 transition-all ${
                             product.selected
-                              ? 'border-sky-200 bg-sky-50/80 shadow-[0_14px_30px_rgba(59,130,246,0.12)] dark:border-sky-900/50 dark:bg-sky-950/24'
-                              : 'border-[color:var(--line)] bg-white/72 dark:bg-white/4'
+                              ? 'border-sky-300 bg-white shadow-[0_16px_30px_rgba(37,99,235,0.12)] ring-1 ring-sky-100 dark:border-sky-700 dark:bg-slate-900/88 dark:ring-sky-900/40'
+                              : 'border-slate-200 bg-white/96 shadow-[0_10px_20px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900/72'
                           }`}
                         >
                           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1189,7 +1197,7 @@ export default function App() {
                                 className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
                                   product.selected
                                     ? 'bg-sky-600 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)]'
-                                    : 'border border-[color:var(--line)] bg-white/90 text-transparent dark:bg-white/6'
+                                    : 'border border-slate-300 bg-white text-transparent dark:border-slate-700 dark:bg-slate-900/80'
                                 }`}
                                 aria-label={tr(`Toggle ${product.part}`, `${product.part} を切り替え`)}
                               >
@@ -1203,17 +1211,34 @@ export default function App() {
                                       {product.trial}
                                     </span>
                                   )}
-                                  <h4 className="text-base font-medium text-[var(--text-primary)]">{product.part}</h4>
+                                  <h4 className="text-lg font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">{product.part}</h4>
                                 </div>
-                                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                                  {tr(`Qty ${product.qty} • C/T ${product.ct}s • ${product.date}`, `数量 ${product.qty} • C/T ${product.ct}秒 • ${product.date}`)}
-                                </p>
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                  <div className="rounded-[16px] border border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/90">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                                      {tr('Qty', '数量')}
+                                    </p>
+                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-50">{product.qty}</p>
+                                  </div>
+                                  <div className="rounded-[16px] border border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/90">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">C/T</p>
+                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-50">
+                                      {tr(`${product.ct}s`, `${product.ct}秒`)}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-[16px] border border-slate-200 bg-slate-100/95 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/90">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                                      {tr('Date', '日付')}
+                                    </p>
+                                    <p className="mt-1 text-sm font-bold text-slate-900 dark:text-slate-50">{product.date}</p>
+                                  </div>
+                                </div>
                               </div>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 md:justify-end">
                               <RowToggle
-                                label={tr('Mark', '強調')}
+                                label={tr('Attach Color', '色付け')}
                                 tone="success"
                                 active={product.colorAccent}
                                 onClick={() =>
@@ -1227,7 +1252,7 @@ export default function App() {
                                 }
                               />
                               <RowToggle
-                                label={tr('Replace', '上書き')}
+                                label={tr('Override', '上書き')}
                                 tone="warning"
                                 active={product.override}
                                 onClick={() =>
@@ -1249,7 +1274,6 @@ export default function App() {
             </div>
           )}
         </Panel>
-      </div>
 
       <div className={actionBarClass}>
         <div className="glass-toolbar rounded-[30px] p-4 md:p-5">
