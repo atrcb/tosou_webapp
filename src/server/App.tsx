@@ -1214,17 +1214,17 @@ export default function App() {
                                     </span>
                                   )}
                                   <h4 className="text-lg font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">{product.part}</h4>
-                                  <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
-                                    {tr(`Amount ${product.qty}`, `数量 ${product.qty}`)}
-                                  </div>
-                                  <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
-                                    {tr(`C/T ${product.ct}s`, `C/T ${product.ct}秒`)}
-                                  </div>
                                 </div>
                               </div>
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                              <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
+                                {tr(`Amount ${product.qty}`, `数量 ${product.qty}`)}
+                              </div>
+                              <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
+                                {tr(`C/T ${product.ct}s`, `C/T ${product.ct}秒`)}
+                              </div>
                               <RowToggle
                                 label={tr('Attach Color', '色付け')}
                                 tone="success"
