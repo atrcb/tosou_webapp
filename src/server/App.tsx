@@ -16,7 +16,9 @@ import {
   Languages,
   LayoutDashboard,
   Menu,
+  Minus,
   Moon,
+  Plus,
   Play,
   RefreshCw,
   Search,
@@ -389,6 +391,15 @@ export default function App() {
     }
     return navigator.language.toLowerCase().startsWith('ja') ? 'ja' : 'en';
   });
+  const [embedZoom, setEmbedZoom] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1;
+    const savedZoom = window.localStorage.getItem('app-embed-zoom');
+    const parsed = savedZoom ? Number(savedZoom) : NaN;
+    if (Number.isFinite(parsed) && parsed >= 0.7 && parsed <= 1.4) {
+      return parsed;
+    }
+    return 1;
+  });
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     if (embedMode || typeof window === 'undefined') return false;
     return window.innerWidth >= 1024;
@@ -426,6 +437,7 @@ export default function App() {
   const view = viewHistory[viewHistory.length - 1] ?? 'home';
   const localize = (message: LocalizedText) => message[language];
   const tr = (en: string, ja: string) => (language === 'ja' ? ja : en);
+  const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
   const addLog = (message: LocalizedText, type: LogEntry['type'] = 'info') => {
     const timestamp = new Date().toLocaleTimeString(language === 'ja' ? 'ja-JP' : 'en-GB', {
@@ -564,6 +576,12 @@ export default function App() {
     }
     document.documentElement.lang = language;
   }, [language]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('app-embed-zoom', String(embedZoom));
+    }
+  }, [embedZoom]);
 
   useEffect(() => {
     const loadCalendar = async () => {
@@ -771,7 +789,9 @@ export default function App() {
   const contentWidthClass = embedMode ? 'mx-auto mt-4 max-w-[980px]' : 'mx-auto mt-6 max-w-[1200px]';
   const embedHomeGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[1.15fr_0.85fr]' : 'grid gap-6 lg:grid-cols-[1.2fr_0.8fr]';
   const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
-  const workflowSetupGridClass = embedMode ? 'grid gap-5 xl:grid-cols-2 xl:items-stretch' : 'grid gap-6 xl:grid-cols-2 xl:items-stretch';
+  const workflowSetupGridClass = embedMode
+    ? 'grid gap-5 sm:grid-cols-2 sm:items-stretch'
+    : 'grid gap-6 xl:grid-cols-2 xl:items-stretch';
   const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
   const reviewGroupClass =
     theme === 'dark'
@@ -799,6 +819,14 @@ export default function App() {
       : 'rounded-full border border-slate-200 bg-white/95 px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-[0_6px_16px_rgba(148,163,184,0.12)]';
   const productTitleClass =
     theme === 'dark' ? 'text-lg font-semibold tracking-[-0.02em] text-slate-50' : 'text-lg font-semibold tracking-[-0.02em] text-slate-950';
+  const embedZoomStyle: React.CSSProperties | undefined =
+    embedMode && embedZoom !== 1
+      ? {
+          transform: `scale(${embedZoom})`,
+          transformOrigin: 'top left',
+          width: `${100 / embedZoom}%`,
+        }
+      : undefined;
 
   const HomeView = () => (
     <div className={pageStackClass}>
@@ -933,28 +961,7 @@ export default function App() {
 
   const WorkflowManagerView = () => (
     <div className={workflowShellClass}>
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-3">
-          <BackButton label={tr('Back', '戻る')} onClick={goBack} />
-          <div>
-            <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Workflow', 'ワークフロー')}</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">{tr('Review before you sync.', '同期前に確認。')}</h1>
-            <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
-              {tr(
-                'Choose the page, add the workbook, review the rows, then send one clean update to Notion.',
-                'ページを選び、ブックを追加し、行を確認してから、整った更新を Notion に送ります。',
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="status-pill">
-            <span className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-            {localize(status)}
-          </div>
-        </div>
-      </div>
+      <BackButton label={tr('Back', '戻る')} onClick={goBack} />
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {workflowSteps.map((step, index) => {
@@ -1619,6 +1626,31 @@ export default function App() {
                   <span className={`h-2 w-2 rounded-full ${isSyncing ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                   {localize(status)}
                 </div>
+                {embedMode && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEmbedZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
+                      className="icon-button"
+                      aria-label={tr('Zoom out', '縮小')}
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <button
+                      onClick={() => setEmbedZoom(1)}
+                      className="status-pill border-slate-200 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
+                      aria-label={tr('Reset zoom', 'ズームをリセット')}
+                    >
+                      {Math.round(embedZoom * 100)}%
+                    </button>
+                    <button
+                      onClick={() => setEmbedZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 1.4))}
+                      className="icon-button"
+                      aria-label={tr('Zoom in', '拡大')}
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
+                )}
                 <button
                   onClick={() => handleLanguageChange(language === 'ja' ? 'en' : 'ja')}
                   className="secondary-button px-3 py-2 md:hidden"
@@ -1639,20 +1671,22 @@ export default function App() {
             </header>
 
             <div className={contentWidthClass}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={view}
-                  initial={reducedMotion ? false : {opacity: 0, y: 8}}
-                  animate={{opacity: 1, y: 0}}
-                  exit={reducedMotion ? {opacity: 1, y: 0} : {opacity: 0, y: -8}}
-                  transition={{duration: reducedMotion ? 0 : 0.18}}
-                >
-                  {view === 'home' && <HomeView />}
-                  {view === 'workflow-manager' && <WorkflowManagerView />}
-                  {view === 'daily-generator' && <DailyGeneratorView />}
-                  {view === 'settings' && <SettingsView />}
-                </motion.div>
-              </AnimatePresence>
+              <div style={embedZoomStyle}>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={view}
+                    initial={reducedMotion ? false : {opacity: 0, y: 8}}
+                    animate={{opacity: 1, y: 0}}
+                    exit={reducedMotion ? {opacity: 1, y: 0} : {opacity: 0, y: -8}}
+                    transition={{duration: reducedMotion ? 0 : 0.18}}
+                  >
+                    {view === 'home' && <HomeView />}
+                    {view === 'workflow-manager' && <WorkflowManagerView />}
+                    {view === 'daily-generator' && <DailyGeneratorView />}
+                    {view === 'settings' && <SettingsView />}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
           </div>
         </main>
