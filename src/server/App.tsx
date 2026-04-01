@@ -1161,16 +1161,16 @@ export default function App() {
               {groupedProducts.map(([color, items]) => {
                 const groupDate = items[0]?.date ?? '--/--';
                 return (
-                  <div key={color} className="rounded-[28px] border border-slate-200/80 bg-slate-50/92 p-4 shadow-[0_18px_32px_rgba(15,23,42,0.05)] dark:border-slate-800 dark:bg-slate-950/26">
+                  <div key={color} className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_32px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-950/26">
                     <div className="px-2 pb-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-100 dark:text-slate-900">
+                        <div className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-100 dark:text-slate-900">
                           {color}
                         </div>
-                        <div className="status-pill border-slate-200 bg-white/90 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                        <div className="status-pill border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
                           {tr(`${items.length} items`, `${items.length} 点`)}
                         </div>
-                        <div className="status-pill border-slate-200 bg-white/90 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                        <div className="status-pill border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
                           {tr(`Date - ${groupDate}`, `日付 - ${groupDate}`)}
                         </div>
                       </div>
