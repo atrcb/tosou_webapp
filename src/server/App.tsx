@@ -1182,8 +1182,8 @@ export default function App() {
                           key={product.id}
                           className={`rounded-[24px] border px-4 py-4 transition-all ${
                             product.selected
-                              ? 'border-sky-300 bg-white shadow-[0_16px_30px_rgba(37,99,235,0.12)] ring-1 ring-sky-100 dark:border-sky-700 dark:bg-slate-900/88 dark:ring-sky-900/40'
-                              : 'border-slate-200 bg-white/96 shadow-[0_10px_20px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900/72'
+                              ? 'border-sky-300 bg-sky-50 shadow-[0_16px_30px_rgba(37,99,235,0.10)] ring-1 ring-sky-200 dark:border-sky-700 dark:bg-slate-900/88 dark:ring-sky-900/40'
+                              : 'border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-900/72'
                           }`}
                         >
                           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1219,10 +1219,10 @@ export default function App() {
                             </div>
 
                             <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                              <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
+                              <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
                                 {tr(`Amount ${product.qty}`, `数量 ${product.qty}`)}
                               </div>
-                              <div className="rounded-full border border-slate-200 bg-slate-100/95 px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
+                              <div className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-900 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-50">
                                 {tr(`C/T ${product.ct}s`, `C/T ${product.ct}秒`)}
                               </div>
                               <RowToggle
