@@ -198,26 +198,38 @@ const RowToggle = ({
   label,
   active,
   tone,
+  theme,
   onClick,
 }: {
   label: string;
   active: boolean;
   tone: 'success' | 'warning';
+  theme: Theme;
   onClick: () => void;
 }) => {
+  const baseClasses =
+    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold tracking-[-0.01em] transition-all';
   const activeClasses =
-    tone === 'success'
-      ? 'border border-emerald-600 bg-emerald-600 text-white shadow-[0_12px_24px_rgba(5,150,105,0.24)]'
-      : 'border border-amber-600 bg-amber-600 text-white shadow-[0_12px_24px_rgba(217,119,6,0.24)]';
+    theme === 'dark'
+      ? tone === 'success'
+        ? 'border-emerald-500 bg-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.24)]'
+        : 'border-amber-500 bg-amber-500 text-slate-950 shadow-[0_12px_24px_rgba(245,158,11,0.24)]'
+      : tone === 'success'
+        ? 'border-emerald-600 bg-emerald-600 text-white shadow-[0_12px_24px_rgba(5,150,105,0.22)]'
+        : 'border-amber-600 bg-amber-600 text-white shadow-[0_12px_24px_rgba(217,119,6,0.22)]';
   const idleClasses =
-    tone === 'success'
-      ? 'border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-emerald-200 dark:hover:bg-emerald-950/35'
-      : 'border border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200 dark:hover:bg-amber-950/35';
+    theme === 'dark'
+      ? tone === 'success'
+        ? 'border-emerald-900/60 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/35'
+        : 'border-amber-900/60 bg-amber-950/20 text-amber-200 hover:bg-amber-950/35'
+      : tone === 'success'
+        ? 'border-emerald-200 bg-white text-emerald-800 shadow-[0_8px_20px_rgba(16,185,129,0.12)] hover:border-emerald-300 hover:bg-emerald-50'
+        : 'border-amber-200 bg-white text-amber-900 shadow-[0_8px_20px_rgba(245,158,11,0.12)] hover:border-amber-300 hover:bg-amber-50';
 
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${active ? activeClasses : idleClasses}`}
+      className={`${baseClasses} ${active ? activeClasses : idleClasses}`}
     >
       {active && <Check size={12} />}
       {label}
@@ -761,18 +773,32 @@ export default function App() {
   const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
   const workflowSetupGridClass = embedMode ? 'grid gap-5 xl:grid-cols-2 xl:items-stretch' : 'grid gap-6 xl:grid-cols-2 xl:items-stretch';
   const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
+  const reviewGroupClass =
+    theme === 'dark'
+      ? 'rounded-[28px] border border-slate-800 bg-slate-950/26 p-4 shadow-[0_18px_32px_rgba(2,6,23,0.24)]'
+      : 'rounded-[28px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] p-4 shadow-[0_20px_36px_rgba(148,163,184,0.18)]';
+  const reviewColorChipClass =
+    theme === 'dark'
+      ? 'inline-flex items-center rounded-full border border-slate-700 bg-slate-100 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-900 shadow-sm'
+      : 'inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-950 shadow-[0_6px_16px_rgba(148,163,184,0.14)]';
+  const reviewMetaPillClass =
+    theme === 'dark'
+      ? 'status-pill border-slate-700 bg-slate-900/70 text-slate-200'
+      : 'status-pill border-slate-200 bg-white/95 text-slate-700 shadow-[0_6px_16px_rgba(148,163,184,0.12)]';
   const selectedProductCardClass =
     theme === 'dark'
       ? 'border-sky-700 bg-slate-900/88 shadow-[0_16px_30px_rgba(2,6,23,0.28)] ring-1 ring-sky-900/40'
-      : 'border-slate-300 bg-white shadow-[0_16px_30px_rgba(15,23,42,0.08)] ring-1 ring-slate-200';
+      : 'border-sky-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_18px_34px_rgba(148,163,184,0.18)] ring-1 ring-sky-100';
   const defaultProductCardClass =
     theme === 'dark'
       ? 'border-slate-800 bg-slate-900/72 shadow-[0_10px_20px_rgba(2,6,23,0.22)]'
-      : 'border-slate-200 bg-white shadow-[0_10px_20px_rgba(15,23,42,0.04)]';
+      : 'border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.94))] shadow-[0_12px_24px_rgba(148,163,184,0.12)]';
   const productMetricPillClass =
     theme === 'dark'
       ? 'rounded-full border border-slate-700 bg-slate-800/90 px-3 py-1.5 text-sm font-bold text-slate-50'
-      : 'rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-900';
+      : 'rounded-full border border-slate-200 bg-white/95 px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-[0_6px_16px_rgba(148,163,184,0.12)]';
+  const productTitleClass =
+    theme === 'dark' ? 'text-lg font-semibold tracking-[-0.02em] text-slate-50' : 'text-lg font-semibold tracking-[-0.02em] text-slate-950';
 
   const HomeView = () => (
     <div className={pageStackClass}>
@@ -1173,16 +1199,16 @@ export default function App() {
               {groupedProducts.map(([color, items]) => {
                 const groupDate = items[0]?.date ?? '--/--';
                 return (
-                  <div key={color} className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-[0_18px_32px_rgba(15,23,42,0.04)] dark:border-slate-800 dark:bg-slate-950/26">
+                  <div key={color} className={reviewGroupClass}>
                     <div className="px-2 pb-4">
                       <div className="flex flex-wrap items-center gap-2">
-                        <div className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-100 dark:text-slate-900">
+                        <div className={reviewColorChipClass}>
                           {color}
                         </div>
-                        <div className="status-pill border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                        <div className={reviewMetaPillClass}>
                           {tr(`${items.length} items`, `${items.length} 点`)}
                         </div>
-                        <div className="status-pill border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200">
+                        <div className={reviewMetaPillClass}>
                           {tr(`Date - ${groupDate}`, `日付 - ${groupDate}`)}
                         </div>
                       </div>
@@ -1208,8 +1234,12 @@ export default function App() {
                                 }
                                 className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
                                   product.selected
-                                    ? 'bg-sky-600 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)]'
-                                    : 'border border-slate-300 bg-white text-transparent dark:border-slate-700 dark:bg-slate-900/80'
+                                    ? theme === 'dark'
+                                      ? 'bg-sky-500 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)]'
+                                      : 'bg-sky-600 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)] ring-4 ring-sky-100'
+                                    : theme === 'dark'
+                                      ? 'border border-slate-700 bg-slate-900/80 text-transparent'
+                                      : 'border border-slate-300 bg-white text-slate-300 shadow-[0_6px_18px_rgba(148,163,184,0.12)] hover:border-sky-200 hover:text-sky-500'
                                 }`}
                                 aria-label={tr(`Toggle ${product.part}`, `${product.part} を切り替え`)}
                               >
@@ -1223,7 +1253,7 @@ export default function App() {
                                       {product.trial}
                                     </span>
                                   )}
-                                  <h4 className="text-lg font-semibold tracking-[-0.02em] text-slate-900 dark:text-slate-50">{product.part}</h4>
+                                  <h4 className={productTitleClass}>{product.part}</h4>
                                 </div>
                               </div>
                             </div>
@@ -1238,6 +1268,7 @@ export default function App() {
                               <RowToggle
                                 label={tr('Attach Color', '色付け')}
                                 tone="success"
+                                theme={theme}
                                 active={product.colorAccent}
                                 onClick={() =>
                                   setProducts((prev) =>
@@ -1252,6 +1283,7 @@ export default function App() {
                               <RowToggle
                                 label={tr('Override', '上書き')}
                                 tone="warning"
+                                theme={theme}
                                 active={product.override}
                                 onClick={() =>
                                   setProducts((prev) =>
