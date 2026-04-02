@@ -795,16 +795,16 @@ export default function App() {
   const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
   const reviewGroupClass =
     theme === 'dark'
-      ? 'rounded-[28px] border border-slate-800 bg-slate-950/26 p-4 shadow-[0_18px_32px_rgba(2,6,23,0.24)]'
-      : 'rounded-[28px] border border-slate-200/90 bg-[linear-gradient(180deg,rgba(248,250,252,0.98),rgba(241,245,249,0.98))] p-4 shadow-[0_20px_36px_rgba(148,163,184,0.18)]';
+      ? 'rounded-[28px] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.94))] p-4 shadow-[0_22px_44px_rgba(2,6,23,0.18)]'
+      : 'rounded-[28px] border border-slate-900/40 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.92))] p-4 shadow-[0_26px_60px_rgba(15,23,42,0.22)]';
   const reviewColorChipClass =
     theme === 'dark'
-      ? 'inline-flex items-center rounded-full border border-slate-700 bg-slate-100 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-900 shadow-sm'
-      : 'inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-950 shadow-[0_6px_16px_rgba(148,163,184,0.14)]';
+      ? 'inline-flex items-center rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]'
+      : 'inline-flex items-center rounded-full border border-white/18 bg-white px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-950 shadow-[0_10px_24px_rgba(2,6,23,0.24)]';
   const reviewMetaPillClass =
     theme === 'dark'
-      ? 'status-pill border-slate-700 bg-slate-900/70 text-slate-200'
-      : 'status-pill border-slate-200 bg-white/95 text-slate-700 shadow-[0_6px_16px_rgba(148,163,184,0.12)]';
+      ? 'status-pill border-slate-200 bg-white text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.08)]'
+      : 'status-pill border-white/12 bg-white/10 text-white shadow-[0_10px_24px_rgba(2,6,23,0.22)]';
   const selectedProductCardClass =
     theme === 'dark'
       ? 'border-sky-700 bg-slate-900/88 shadow-[0_16px_30px_rgba(2,6,23,0.28)] ring-1 ring-sky-900/40'
