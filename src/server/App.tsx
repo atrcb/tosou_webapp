@@ -196,45 +196,37 @@ const NavItem = ({
   </button>
 );
 
-const RowToggle = ({
-  label,
+const CircleToggle = ({
   active,
   tone,
   theme,
+  ariaLabel,
   onClick,
 }: {
-  label: string;
   active: boolean;
-  tone: 'success' | 'warning';
+  tone: 'select' | 'success' | 'warning';
   theme: Theme;
+  ariaLabel: string;
   onClick: () => void;
 }) => {
-  const baseClasses =
-    'inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-semibold tracking-[-0.01em] transition-all';
+  const base =
+    'inline-flex h-16 w-16 items-center justify-center rounded-full border bg-white shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-all focus:outline-none focus:ring-2 focus:ring-sky-300/60';
+  const inactive = 'border-slate-200 text-slate-200 hover:border-slate-300';
   const activeClasses =
-    theme === 'dark'
-      ? tone === 'success'
-        ? 'border-emerald-500 bg-emerald-500 text-white shadow-[0_12px_24px_rgba(16,185,129,0.24)]'
-        : 'border-amber-500 bg-amber-500 text-slate-950 shadow-[0_12px_24px_rgba(245,158,11,0.24)]'
+    tone === 'select'
+      ? 'border-sky-500 ring-2 ring-sky-200/70 text-sky-600'
       : tone === 'success'
-        ? 'border-emerald-600 bg-emerald-600 text-white shadow-[0_12px_24px_rgba(5,150,105,0.22)]'
-        : 'border-amber-600 bg-amber-600 text-white shadow-[0_12px_24px_rgba(217,119,6,0.22)]';
-  const idleClasses =
-    theme === 'dark'
-      ? tone === 'success'
-        ? 'border-emerald-900/60 bg-emerald-950/20 text-emerald-200 hover:bg-emerald-950/35'
-        : 'border-amber-900/60 bg-amber-950/20 text-amber-200 hover:bg-amber-950/35'
-      : tone === 'success'
-        ? 'border-emerald-200 bg-white text-emerald-800 shadow-[0_8px_20px_rgba(16,185,129,0.12)] hover:border-emerald-300 hover:bg-emerald-50'
-        : 'border-amber-200 bg-white text-amber-900 shadow-[0_8px_20px_rgba(245,158,11,0.12)] hover:border-amber-300 hover:bg-amber-50';
+        ? 'border-emerald-500 ring-2 ring-emerald-200/70 text-emerald-600'
+        : 'border-amber-500 ring-2 ring-amber-200/70 text-amber-600';
 
   return (
     <button
       onClick={onClick}
-      className={`${baseClasses} ${active ? activeClasses : idleClasses}`}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={`${base} ${active ? activeClasses : inactive}`}
     >
-      {active && <Check size={12} />}
-      {label}
+      {active ? <Check size={24} strokeWidth={3} /> : null}
     </button>
   );
 };
@@ -795,24 +787,24 @@ export default function App() {
   const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
   const reviewGroupClass =
     theme === 'dark'
-      ? 'rounded-[28px] border border-slate-200/85 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.94))] p-4 shadow-[0_22px_44px_rgba(2,6,23,0.18)]'
-      : 'rounded-[28px] border border-slate-900/40 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.92))] p-4 shadow-[0_26px_60px_rgba(15,23,42,0.22)]';
+      ? 'rounded-[44px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(51,65,85,0.92),rgba(2,6,23,0.96))] p-6 shadow-[0_34px_90px_rgba(2,6,23,0.45)]'
+      : 'rounded-[44px] border border-slate-900/25 bg-[radial-gradient(circle_at_top_left,rgba(51,65,85,0.92),rgba(2,6,23,0.98))] p-6 shadow-[0_34px_90px_rgba(2,6,23,0.45)]';
   const reviewColorChipClass =
     theme === 'dark'
-      ? 'inline-flex items-center rounded-full border border-slate-900 bg-slate-900 px-3 py-1.5 text-base font-bold tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]'
-      : 'inline-flex items-center rounded-full border border-white/18 bg-white px-3 py-1.5 text-base font-bold tracking-[0.01em] text-slate-950 shadow-[0_10px_24px_rgba(2,6,23,0.24)]';
-  const reviewMetaPillClass =
+      ? 'inline-flex items-center rounded-full border border-white/40 bg-white px-7 py-3 text-2xl font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-4xl'
+      : 'inline-flex items-center rounded-full border border-white/40 bg-white px-7 py-3 text-2xl font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-4xl';
+  const reviewHeaderMetaClass =
     theme === 'dark'
-      ? 'status-pill border-slate-200 bg-white text-slate-800 shadow-[0_10px_24px_rgba(15,23,42,0.08)]'
-      : 'status-pill border-white/12 bg-white/10 text-white shadow-[0_10px_24px_rgba(2,6,23,0.22)]';
+      ? 'text-lg font-semibold italic text-white/90 md:text-2xl'
+      : 'text-lg font-semibold italic text-white/90 md:text-2xl';
+  const reviewHeaderColumnsClass =
+    theme === 'dark'
+      ? 'text-base font-semibold text-white/85 md:text-lg'
+      : 'text-base font-semibold text-white/85 md:text-lg';
   const selectedProductCardClass =
-    theme === 'dark'
-      ? 'border-sky-700 bg-slate-900/88 shadow-[0_16px_30px_rgba(2,6,23,0.28)] ring-1 ring-sky-900/40'
-      : 'border-sky-200 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.98))] shadow-[0_18px_34px_rgba(148,163,184,0.18)] ring-1 ring-sky-100';
+    'border-sky-200 bg-white shadow-[0_22px_44px_rgba(2,6,23,0.16)] ring-2 ring-sky-400/55';
   const defaultProductCardClass =
-    theme === 'dark'
-      ? 'border-slate-800 bg-slate-900/72 shadow-[0_10px_20px_rgba(2,6,23,0.22)]'
-      : 'border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(248,250,252,0.94))] shadow-[0_12px_24px_rgba(148,163,184,0.12)]';
+    'border-slate-200/80 bg-white shadow-[0_18px_36px_rgba(2,6,23,0.12)]';
   const productMetricPillClass =
     theme === 'dark'
       ? 'rounded-full border border-slate-700 bg-slate-800/90 px-3 py-1.5 text-sm font-bold text-slate-50'
@@ -1207,17 +1199,16 @@ export default function App() {
                 const groupDate = items[0]?.date ?? '--/--';
                 return (
                   <div key={color} className={reviewGroupClass}>
-                    <div className="px-2 pb-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className={reviewColorChipClass}>
-                          {color}
-                        </div>
-                        <div className={reviewMetaPillClass}>
-                          {tr(`${items.length} items`, `${items.length} 点`)}
-                        </div>
-                        <div className={reviewMetaPillClass}>
-                          {tr(`Date - ${groupDate}`, `日付 - ${groupDate}`)}
-                        </div>
+                    <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-4">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className={reviewColorChipClass}>{color}</div>
+                        <div className={reviewHeaderMetaClass}>{groupDate}</div>
+                        <div className={reviewHeaderMetaClass}>{tr(`${items.length} items`, `${items.length} 点`)}</div>
+                      </div>
+                      <div className={`grid min-w-[240px] grid-cols-3 gap-4 justify-items-center ${reviewHeaderColumnsClass}`}>
+                        <span>{tr('Select', '選択')}</span>
+                        <span>{tr('Color', '色付け')}</span>
+                        <span>{tr('Override', '上書き')}</span>
                       </div>
                     </div>
 
@@ -1225,78 +1216,63 @@ export default function App() {
                       {items.map((product) => (
                         <div
                           key={product.id}
-                          className={`rounded-[24px] border px-4 py-4 transition-all ${
+                          className={`rounded-[34px] border px-7 py-7 transition-all ${
                             product.selected ? selectedProductCardClass : defaultProductCardClass
                           }`}
                         >
-                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                            <div className="flex min-w-0 items-start gap-4">
-                              <button
-                                onClick={() =>
-                                  setProducts((prev) =>
-                                    prev.map((item) =>
-                                      item.id === product.id ? {...item, selected: !item.selected} : item,
-                                    ),
-                                  )
-                                }
-                                className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-all ${
-                                  product.selected
-                                    ? theme === 'dark'
-                                      ? 'bg-sky-500 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)]'
-                                      : 'bg-sky-600 text-white shadow-[0_12px_24px_rgba(59,130,246,0.24)] ring-4 ring-sky-100'
-                                    : theme === 'dark'
-                                      ? 'border border-slate-700 bg-slate-900/80 text-transparent'
-                                      : 'border border-slate-300 bg-white text-slate-300 shadow-[0_6px_18px_rgba(148,163,184,0.12)] hover:border-sky-200 hover:text-sky-500'
-                                }`}
-                                aria-label={tr(`Toggle ${product.part}`, `${product.part} を切り替え`)}
-                              >
-                                <Check size={16} strokeWidth={3} />
-                              </button>
-
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  {product.trial && (
-                                    <span className="rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-700 dark:bg-rose-950/30 dark:text-rose-200">
-                                      {product.trial}
-                                    </span>
-                                  )}
-                                  <h4 className={productTitleClass}>{product.part}</h4>
-                                </div>
+                          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                            <div className="min-w-0">
+                              <div className="space-y-1">
+                                {product.trial ? (
+                                  <p className="text-lg font-extrabold tracking-[-0.02em] text-rose-600 md:text-2xl">{product.trial}</p>
+                                ) : (
+                                  <div className="h-7 md:h-8" aria-hidden="true" />
+                                )}
+                                <h4 className="text-2xl font-extrabold tracking-[-0.03em] text-slate-950 md:text-4xl">
+                                  {product.part}
+                                </h4>
+                              </div>
+                              <div className="mt-4 flex flex-wrap items-center gap-x-10 gap-y-2 text-xl font-bold text-sky-700 md:text-3xl">
+                                <span>
+                                  {tr('Qty:', '数量:')} {product.qty}
+                                </span>
+                                <span>
+                                  {tr('C/T:', 'c/t:')} {product.ct}
+                                </span>
                               </div>
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                              <div className={productMetricPillClass}>
-                                {tr(`Amount ${product.qty}`, `数量 ${product.qty}`)}
-                              </div>
-                              <div className={productMetricPillClass}>
-                                {tr(`C/T ${product.ct}s`, `C/T ${product.ct}秒`)}
-                              </div>
-                              <RowToggle
-                                label={tr('Attach Color', '色付け')}
-                                tone="success"
+                            <div className="grid min-w-[240px] grid-cols-3 gap-5 justify-items-center md:min-w-[280px]">
+                              <CircleToggle
                                 theme={theme}
-                                active={product.colorAccent}
+                                tone="select"
+                                active={product.selected}
+                                ariaLabel={tr(`Select ${product.part}`, `${product.part} を選択`)}
                                 onClick={() =>
                                   setProducts((prev) =>
-                                    prev.map((item) =>
-                                      item.id === product.id
-                                        ? {...item, colorAccent: !item.colorAccent}
-                                        : item,
-                                    ),
+                                    prev.map((item) => (item.id === product.id ? {...item, selected: !item.selected} : item)),
                                   )
                                 }
                               />
-                              <RowToggle
-                                label={tr('Override', '上書き')}
-                                tone="warning"
+                              <CircleToggle
                                 theme={theme}
-                                active={product.override}
+                                tone="success"
+                                active={product.colorAccent}
+                                ariaLabel={tr(`Attach color to ${product.part}`, `${product.part} に色付け`)}
                                 onClick={() =>
                                   setProducts((prev) =>
-                                    prev.map((item) =>
-                                      item.id === product.id ? {...item, override: !item.override} : item,
-                                    ),
+                                    prev.map((item) => (item.id === product.id ? {...item, colorAccent: !item.colorAccent} : item)),
+                                  )
+                                }
+                              />
+                              <CircleToggle
+                                theme={theme}
+                                tone="warning"
+                                active={product.override}
+                                ariaLabel={tr(`Override ${product.part}`, `${product.part} を上書き`)}
+                                onClick={() =>
+                                  setProducts((prev) =>
+                                    prev.map((item) => (item.id === product.id ? {...item, override: !item.override} : item)),
                                   )
                                 }
                               />
