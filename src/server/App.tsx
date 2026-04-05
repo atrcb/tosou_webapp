@@ -210,14 +210,14 @@ const CircleToggle = ({
   onClick: () => void;
 }) => {
   const base =
-    'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-all focus:outline-none md:h-12 md:w-12';
-  const inactive = 'border-slate-200 hover:border-slate-300';
+    'inline-flex h-11 w-11 items-center justify-center rounded-full border-2 shadow-[0_12px_24px_rgba(2,6,23,0.18)] transition-all focus:outline-none focus:ring-2 focus:ring-slate-200/90 md:h-12 md:w-12';
+  const inactive = 'border-slate-100 bg-white hover:border-slate-200';
   const activeClasses =
     tone === 'select'
-      ? 'border-sky-500 ring-2 ring-sky-200/70'
+      ? 'border-white bg-sky-700 shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
       : tone === 'success'
-        ? 'border-emerald-500 ring-2 ring-emerald-200/70'
-        : 'border-amber-500 ring-2 ring-amber-200/70';
+        ? 'border-white bg-emerald-700 shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
+        : 'border-white bg-amber-700 shadow-[0_14px_28px_rgba(2,6,23,0.22)]';
   const labelClasses =
     tone === 'select'
       ? 'text-sky-700'
@@ -232,7 +232,7 @@ const CircleToggle = ({
       aria-pressed={active}
       className={`${base} ${active ? activeClasses : inactive} ${active ? 'font-extrabold' : 'font-bold'}`}
     >
-      <span className={`text-xs tracking-[-0.02em] ${labelClasses} md:text-sm`}>{label}</span>
+      <span className={`text-xs tracking-[-0.02em] ${active ? 'text-white' : labelClasses} md:text-sm`}>{label}</span>
     </button>
   );
 };
