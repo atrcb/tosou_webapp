@@ -199,34 +199,40 @@ const NavItem = ({
 const CircleToggle = ({
   active,
   tone,
-  theme,
+  label,
   ariaLabel,
   onClick,
 }: {
   active: boolean;
   tone: 'select' | 'success' | 'warning';
-  theme: Theme;
+  label: string;
   ariaLabel: string;
   onClick: () => void;
 }) => {
   const base =
-    'inline-flex h-16 w-16 items-center justify-center rounded-full border bg-white shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-all focus:outline-none focus:ring-2 focus:ring-sky-300/60';
-  const inactive = 'border-slate-200 text-slate-200 hover:border-slate-300';
+    'inline-flex h-11 w-11 items-center justify-center rounded-full border bg-white shadow-[0_10px_24px_rgba(2,6,23,0.16)] transition-all focus:outline-none md:h-12 md:w-12';
+  const inactive = 'border-slate-200 hover:border-slate-300';
   const activeClasses =
     tone === 'select'
-      ? 'border-sky-500 ring-2 ring-sky-200/70 text-sky-600'
+      ? 'border-sky-500 ring-2 ring-sky-200/70'
       : tone === 'success'
-        ? 'border-emerald-500 ring-2 ring-emerald-200/70 text-emerald-600'
-        : 'border-amber-500 ring-2 ring-amber-200/70 text-amber-600';
+        ? 'border-emerald-500 ring-2 ring-emerald-200/70'
+        : 'border-amber-500 ring-2 ring-amber-200/70';
+  const labelClasses =
+    tone === 'select'
+      ? 'text-sky-700'
+      : tone === 'success'
+        ? 'text-emerald-700'
+        : 'text-amber-700';
 
   return (
     <button
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={active}
-      className={`${base} ${active ? activeClasses : inactive}`}
+      className={`${base} ${active ? activeClasses : inactive} ${active ? 'font-extrabold' : 'font-bold'}`}
     >
-      {active ? <Check size={24} strokeWidth={3} /> : null}
+      <span className={`text-xs tracking-[-0.02em] ${labelClasses} md:text-sm`}>{label}</span>
     </button>
   );
 };
@@ -791,16 +797,16 @@ export default function App() {
       : 'rounded-[44px] border border-slate-900/25 bg-[radial-gradient(circle_at_top_left,rgba(51,65,85,0.92),rgba(2,6,23,0.98))] p-6 shadow-[0_34px_90px_rgba(2,6,23,0.45)]';
   const reviewColorChipClass =
     theme === 'dark'
-      ? 'inline-flex items-center rounded-full border border-white/40 bg-white px-7 py-3 text-2xl font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-4xl'
-      : 'inline-flex items-center rounded-full border border-white/40 bg-white px-7 py-3 text-2xl font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-4xl';
+      ? 'inline-flex items-center rounded-full border border-white/40 bg-white px-6 py-2.5 text-lg font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-2xl'
+      : 'inline-flex items-center rounded-full border border-white/40 bg-white px-6 py-2.5 text-lg font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-2xl';
   const reviewHeaderMetaClass =
     theme === 'dark'
-      ? 'text-lg font-semibold italic text-white/90 md:text-2xl'
-      : 'text-lg font-semibold italic text-white/90 md:text-2xl';
+      ? 'text-sm font-semibold italic text-white/90 md:text-base'
+      : 'text-sm font-semibold italic text-white/90 md:text-base';
   const reviewHeaderColumnsClass =
     theme === 'dark'
-      ? 'text-base font-semibold text-white/85 md:text-lg'
-      : 'text-base font-semibold text-white/85 md:text-lg';
+      ? 'text-right text-xs font-semibold text-white/85 md:text-sm'
+      : 'text-right text-xs font-semibold text-white/85 md:text-sm';
   const selectedProductCardClass =
     'border-sky-200 bg-white shadow-[0_22px_44px_rgba(2,6,23,0.16)] ring-2 ring-sky-400/55';
   const defaultProductCardClass =
@@ -1203,12 +1209,12 @@ export default function App() {
                       <div className="flex flex-wrap items-center gap-4">
                         <div className={reviewColorChipClass}>{color}</div>
                         <div className={reviewHeaderMetaClass}>{groupDate}</div>
-                        <div className={reviewHeaderMetaClass}>{tr(`${items.length} items`, `${items.length} 点`)}</div>
                       </div>
-                      <div className={`grid min-w-[240px] grid-cols-3 gap-4 justify-items-center ${reviewHeaderColumnsClass}`}>
-                        <span>{tr('Select', '選択')}</span>
-                        <span>{tr('Color', '色付け')}</span>
-                        <span>{tr('Override', '上書き')}</span>
+                      <div className={reviewHeaderColumnsClass}>
+                        {tr(
+                          `${items.filter((item) => item.selected).length}/${items.length} selected`,
+                          `${items.filter((item) => item.selected).length}/${items.length} 選択中`,
+                        )}
                       </div>
                     </div>
 
@@ -1216,7 +1222,7 @@ export default function App() {
                       {items.map((product) => (
                         <div
                           key={product.id}
-                          className={`rounded-[34px] border px-7 py-7 transition-all ${
+                          className={`rounded-[34px] border px-7 py-6 transition-all ${
                             product.selected ? selectedProductCardClass : defaultProductCardClass
                           }`}
                         >
@@ -1224,15 +1230,15 @@ export default function App() {
                             <div className="min-w-0">
                               <div className="space-y-1">
                                 {product.trial ? (
-                                  <p className="text-lg font-extrabold tracking-[-0.02em] text-rose-600 md:text-2xl">{product.trial}</p>
+                                  <p className="text-sm font-extrabold tracking-[-0.02em] text-rose-600 md:text-base">{product.trial}</p>
                                 ) : (
                                   <div className="h-7 md:h-8" aria-hidden="true" />
                                 )}
-                                <h4 className="text-2xl font-extrabold tracking-[-0.03em] text-slate-950 md:text-4xl">
+                                <h4 className="text-xl font-extrabold tracking-[-0.03em] text-slate-950 md:text-2xl">
                                   {product.part}
                                 </h4>
                               </div>
-                              <div className="mt-4 flex flex-wrap items-center gap-x-10 gap-y-2 text-xl font-bold text-sky-700 md:text-3xl">
+                              <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-2 text-base font-bold text-sky-700 md:text-lg">
                                 <span>
                                   {tr('Qty:', '数量:')} {product.qty}
                                 </span>
@@ -1244,9 +1250,9 @@ export default function App() {
 
                             <div className="grid min-w-[240px] grid-cols-3 gap-5 justify-items-center md:min-w-[280px]">
                               <CircleToggle
-                                theme={theme}
                                 tone="select"
                                 active={product.selected}
+                                label={tr('Sel', '選択')}
                                 ariaLabel={tr(`Select ${product.part}`, `${product.part} を選択`)}
                                 onClick={() =>
                                   setProducts((prev) =>
@@ -1255,9 +1261,9 @@ export default function App() {
                                 }
                               />
                               <CircleToggle
-                                theme={theme}
                                 tone="success"
                                 active={product.colorAccent}
+                                label={tr('Clr', '色付')}
                                 ariaLabel={tr(`Attach color to ${product.part}`, `${product.part} に色付け`)}
                                 onClick={() =>
                                   setProducts((prev) =>
@@ -1266,9 +1272,9 @@ export default function App() {
                                 }
                               />
                               <CircleToggle
-                                theme={theme}
                                 tone="warning"
                                 active={product.override}
+                                label={tr('Ovr', '上書')}
                                 ariaLabel={tr(`Override ${product.part}`, `${product.part} を上書き`)}
                                 onClick={() =>
                                   setProducts((prev) =>
