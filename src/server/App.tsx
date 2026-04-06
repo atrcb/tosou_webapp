@@ -1218,27 +1218,27 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                       {items.map((product) => (
                         <div
                           key={product.id}
-                          className={`rounded-[34px] border px-7 py-6 transition-all ${
+                          className={`rounded-[30px] border px-5 py-4 transition-all ${
                             product.selected ? selectedProductCardClass : defaultProductCardClass
                           }`}
                         >
-                          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div className="min-w-0">
-                              <div className="space-y-1">
+                              <div className="space-y-0.5">
                                 {product.trial ? (
-                                  <p className="text-sm font-extrabold tracking-[-0.02em] text-rose-600 md:text-base">{product.trial}</p>
+                                  <p className="text-xs font-extrabold tracking-[-0.02em] text-rose-600 md:text-sm">{product.trial}</p>
                                 ) : (
-                                  <div className="h-7 md:h-8" aria-hidden="true" />
+                                  <div className="h-4 md:h-5" aria-hidden="true" />
                                 )}
-                                <h4 className="text-xl font-extrabold tracking-[-0.03em] text-slate-950 md:text-2xl">
+                                <h4 className="text-base font-extrabold tracking-[-0.03em] text-slate-950 md:text-xl">
                                   {product.part}
                                 </h4>
                               </div>
-                              <div className="mt-3 flex flex-wrap items-center gap-x-8 gap-y-2 text-base font-bold text-sky-700 md:text-lg">
+                              <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-bold text-sky-700 md:text-base">
                                 <span>
                                   {tr('Qty:', '数量:')} {product.qty}
                                 </span>
