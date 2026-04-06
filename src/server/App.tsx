@@ -791,8 +791,11 @@ export default function App() {
   const workflowSetupGridClass = embedMode
     ? 'grid gap-5 sm:grid-cols-2 sm:items-stretch'
     : 'grid gap-6 xl:grid-cols-2 xl:items-stretch';
-  const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
-  const reviewGridClass = embedMode ? 'mt-8 grid gap-4 xl:grid-cols-2' : 'mt-8 grid gap-5 lg:grid-cols-2';
+  const actionBarClass = embedMode ? 'sticky bottom-0 z-20 -mx-3 mt-4 md:-mx-4' : 'sticky bottom-4 z-10 pt-4';
+  const actionToolbarClass = embedMode
+    ? 'glass-toolbar rounded-t-[30px] rounded-b-none border-b-0 p-4 md:p-5'
+    : 'glass-toolbar rounded-[30px] p-4 md:p-5';
+  const reviewGridClass = embedMode ? 'mt-8 grid gap-4 md:grid-cols-2' : 'mt-8 grid gap-5 lg:grid-cols-2';
   const reviewSummaryPillClass =
     theme === 'dark'
       ? 'inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3.5 py-1.5 text-xs font-semibold text-slate-100'
@@ -1327,7 +1330,7 @@ export default function App() {
         </Panel>
 
       <div className={actionBarClass}>
-        <div className="glass-toolbar rounded-[30px] p-4 md:p-5">
+        <div className={actionToolbarClass}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="grid gap-3 md:grid-cols-3 xl:flex-1">
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
