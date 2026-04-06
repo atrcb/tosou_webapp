@@ -210,14 +210,15 @@ const CircleToggle = ({
   onClick: () => void;
 }) => {
   const base =
-    'inline-flex h-11 w-11 items-center justify-center rounded-full border-2 shadow-[0_12px_24px_rgba(2,6,23,0.18)] transition-all focus:outline-none focus:ring-2 focus:ring-slate-200/90 md:h-12 md:w-12';
-  const inactive = 'border-slate-100 bg-white hover:border-slate-200';
+    'inline-flex h-11 w-11 items-center justify-center rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_12px_24px_rgba(15,23,42,0.14)] transition-all duration-150 hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-slate-200/90 md:h-12 md:w-12';
+  const inactive =
+    'border-[1.5px] border-white/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,246,250,0.96))] hover:border-slate-200';
   const activeClasses =
     tone === 'select'
-      ? 'border-[3px] border-sky-700 bg-white shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
+      ? 'border-[2.5px] border-sky-700 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,246,250,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_14px_28px_rgba(37,99,235,0.14)]'
       : tone === 'success'
-        ? 'border-[3px] border-emerald-700 bg-white shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
-        : 'border-[3px] border-amber-700 bg-white shadow-[0_14px_28px_rgba(2,6,23,0.22)]';
+        ? 'border-[2.5px] border-emerald-700 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,246,250,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_14px_28px_rgba(5,150,105,0.14)]'
+        : 'border-[2.5px] border-amber-700 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(243,246,250,0.96))] shadow-[inset_0_1px_0_rgba(255,255,255,0.92),0_14px_28px_rgba(180,83,9,0.14)]';
   const labelClasses =
     tone === 'select'
       ? 'text-sky-700'
@@ -791,32 +792,39 @@ export default function App() {
     ? 'grid gap-5 sm:grid-cols-2 sm:items-stretch'
     : 'grid gap-6 xl:grid-cols-2 xl:items-stretch';
   const actionBarClass = embedMode ? 'sticky bottom-3 z-10 pt-3' : 'sticky bottom-4 z-10 pt-4';
+  const reviewGridClass = embedMode ? 'mt-8 grid gap-4 xl:grid-cols-2' : 'mt-8 grid gap-5 lg:grid-cols-2';
+  const reviewSummaryPillClass =
+    theme === 'dark'
+      ? 'inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3.5 py-1.5 text-xs font-semibold text-slate-100'
+      : 'inline-flex items-center rounded-full border border-slate-200/90 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.08)]';
   const reviewGroupClass =
     theme === 'dark'
-      ? 'rounded-[44px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(51,65,85,0.92),rgba(2,6,23,0.96))] p-6 shadow-[0_34px_90px_rgba(2,6,23,0.45)]'
-      : 'rounded-[44px] border border-slate-900/25 bg-[radial-gradient(circle_at_top_left,rgba(51,65,85,0.92),rgba(2,6,23,0.98))] p-6 shadow-[0_34px_90px_rgba(2,6,23,0.45)]';
+      ? 'rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.84),rgba(15,23,42,0.72))] p-4 text-white shadow-[0_24px_60px_rgba(2,6,23,0.35)] backdrop-blur-2xl'
+      : 'rounded-[34px] border border-slate-200/95 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(241,245,249,0.9))] p-4 text-slate-900 shadow-[0_24px_60px_rgba(15,23,42,0.12)] ring-1 ring-slate-200/80 backdrop-blur-2xl';
   const reviewColorChipClass =
     theme === 'dark'
-      ? 'inline-flex items-center rounded-full border border-white/40 bg-white px-6 py-2.5 text-lg font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-2xl'
-      : 'inline-flex items-center rounded-full border border-white/40 bg-white px-6 py-2.5 text-lg font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_14px_30px_rgba(2,6,23,0.25)] md:text-2xl';
+      ? 'inline-flex items-center rounded-full border border-white/20 bg-white px-5 py-2 text-base font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_12px_24px_rgba(2,6,23,0.22)] md:text-xl'
+      : 'inline-flex items-center rounded-full border border-slate-200/90 bg-white px-5 py-2 text-base font-extrabold tracking-[0.01em] text-slate-950 shadow-[0_12px_24px_rgba(15,23,42,0.1)] md:text-xl';
   const reviewHeaderMetaClass =
     theme === 'dark'
-      ? 'text-sm font-semibold italic text-white/90 md:text-base'
-      : 'text-sm font-semibold italic text-white/90 md:text-base';
+      ? 'text-xs font-medium text-slate-300 md:text-sm'
+      : 'text-xs font-medium text-slate-500 md:text-sm';
   const reviewHeaderColumnsClass =
     theme === 'dark'
-      ? 'text-right text-xs font-semibold text-white/85 md:text-sm'
-      : 'text-right text-xs font-semibold text-white/85 md:text-sm';
+      ? 'inline-flex items-center rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-semibold text-slate-100'
+      : 'inline-flex items-center rounded-full border border-slate-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 shadow-[0_10px_20px_rgba(15,23,42,0.08)]';
   const selectedProductCardClass =
-    'border-sky-200 bg-white shadow-[0_22px_44px_rgba(2,6,23,0.16)] ring-2 ring-sky-400/55';
-  const defaultProductCardClass =
-    'border-slate-200/80 bg-white shadow-[0_18px_36px_rgba(2,6,23,0.12)]';
-  const productMetricPillClass =
     theme === 'dark'
-      ? 'rounded-full border border-slate-700 bg-slate-800/90 px-3 py-1.5 text-sm font-bold text-slate-50'
-      : 'rounded-full border border-slate-200 bg-white/95 px-3.5 py-1.5 text-sm font-semibold text-slate-700 shadow-[0_6px_16px_rgba(148,163,184,0.12)]';
-  const productTitleClass =
-    theme === 'dark' ? 'text-lg font-semibold tracking-[-0.02em] text-slate-50' : 'text-lg font-semibold tracking-[-0.02em] text-slate-950';
+      ? 'border-sky-400/35 bg-white/[0.06] text-white shadow-[0_18px_36px_rgba(2,6,23,0.22)] ring-1 ring-sky-300/40 backdrop-blur-xl'
+      : 'border-sky-200/95 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,250,252,0.94))] text-slate-900 shadow-[0_18px_36px_rgba(15,23,42,0.1)] ring-2 ring-sky-300/75';
+  const defaultProductCardClass =
+    theme === 'dark'
+      ? 'border-white/8 bg-white/[0.04] text-white shadow-[0_14px_28px_rgba(2,6,23,0.18)] backdrop-blur-xl'
+      : 'border-slate-200/90 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,250,252,0.9))] text-slate-900 shadow-[0_14px_28px_rgba(15,23,42,0.08)] ring-1 ring-slate-200/80';
+  const reviewMetricChipClass =
+    theme === 'dark'
+      ? 'inline-flex items-center rounded-full border border-sky-400/10 bg-sky-400/10 px-3 py-1 text-xs font-semibold text-sky-100'
+      : 'inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700';
   const embedZoomStyle: React.CSSProperties | undefined =
     embedMode && embedZoom !== 1
       ? {
@@ -1142,7 +1150,7 @@ export default function App() {
       </div>
 
       <Panel className="p-6 md:p-7">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('3. Review', '3. 確認')}</p>
               <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Products', '製品')}</h2>
@@ -1151,18 +1159,31 @@ export default function App() {
                   ? tr(`${selectedCount} rows selected for sync.`, `${selectedCount} 行を同期対象に選択中です。`)
                   : tr('Load a workbook to review the rows.', '行を確認するにはブックを読み込んでください。')}
               </p>
+              {products.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <div className={reviewSummaryPillClass}>
+                    {tr(`${filteredProducts.length} visible`, `${filteredProducts.length} 件表示`)}
+                  </div>
+                  <div className={reviewSummaryPillClass}>
+                    {tr(`${groupedProducts.length} color groups`, `${groupedProducts.length} 色グループ`)}
+                  </div>
+                  <div className={reviewSummaryPillClass}>
+                    {tr(`${selectedCount} selected`, `${selectedCount} 件選択`)}
+                  </div>
+                </div>
+              )}
             </div>
 
             {products.length > 0 && (
-              <div className="flex flex-col gap-3 md:flex-row md:items-center">
-                <div className="relative">
+              <div className="glass-toolbar flex flex-col gap-2 rounded-[24px] p-2 md:min-w-[360px] md:flex-row md:items-center">
+                <div className="relative min-w-0 flex-1">
                   <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)]" />
                   <input
                     type="text"
                     value={reviewQuery}
                     onChange={(event) => setReviewQuery(event.target.value)}
                     placeholder={tr('Search parts', '部品を検索')}
-                    className="w-full rounded-full border border-[color:var(--line)] bg-white/68 py-2 pl-10 pr-4 text-sm text-[var(--text-primary)] outline-none transition focus:border-sky-300 dark:bg-white/6 md:w-64"
+                    className="w-full rounded-full border border-white/70 bg-white/82 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-sky-300 focus:bg-white dark:border-white/10 dark:bg-white/6 dark:text-white"
                   />
                 </div>
                 <button
@@ -1200,88 +1221,99 @@ export default function App() {
               </div>
             </div>
           ) : (
-            <div className="mt-8 space-y-5">
+            <div className={reviewGridClass}>
               {groupedProducts.map(([color, items]) => {
                 const groupDate = items[0]?.date ?? '--/--';
+                const groupSelectedCount = items.filter((item) => item.selected).length;
                 return (
                   <div key={color} className={reviewGroupClass}>
-                    <div className="flex flex-wrap items-center justify-between gap-4 px-2 pb-4">
-                      <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-start justify-between gap-4 px-2 pb-4">
+                      <div className="min-w-0 space-y-2">
                         <div className={reviewColorChipClass}>{color}</div>
-                        <div className={reviewHeaderMetaClass}>{groupDate}</div>
+                        <div className="space-y-1">
+                          <div className={reviewHeaderMetaClass}>{groupDate}</div>
+                          <div className={reviewHeaderMetaClass}>
+                            {tr(`${items.length} items in this group`, `このグループ ${items.length} 件`)}
+                          </div>
+                        </div>
                       </div>
                       <div className={reviewHeaderColumnsClass}>
                         {tr(
-                          `${items.filter((item) => item.selected).length}/${items.length} selected`,
-                          `${items.filter((item) => item.selected).length}/${items.length} 選択中`,
+                          `${groupSelectedCount}/${items.length} selected`,
+                          `${groupSelectedCount}/${items.length} 選択中`,
                         )}
                       </div>
                     </div>
 
-                    <div className="space-y-2.5">
+                    <div className="space-y-3">
                       {items.map((product) => (
                         <div
                           key={product.id}
-                          className={`rounded-[30px] border px-5 py-4 transition-all ${
+                          className={`select-none rounded-[28px] border px-4 py-4 transition-all ${
                             product.selected ? selectedProductCardClass : defaultProductCardClass
                           }`}
                         >
-                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                          <div className="flex flex-col gap-3">
                             <div className="min-w-0">
-                              <div className="space-y-0.5">
+                              <div className="space-y-1">
                                 {product.trial ? (
                                   <p className="text-xs font-extrabold tracking-[-0.02em] text-rose-600 md:text-sm">{product.trial}</p>
                                 ) : (
                                   <div className="h-4 md:h-5" aria-hidden="true" />
                                 )}
-                                <h4 className="text-base font-extrabold tracking-[-0.03em] text-slate-950 md:text-xl">
+                                <h4
+                                  className="text-base font-semibold leading-tight tracking-[-0.03em] md:text-xl"
+                                  style={{color: 'var(--text-primary)'}}
+                                >
                                   {product.part}
                                 </h4>
                               </div>
-                              <div className="mt-2 flex flex-wrap items-center gap-x-6 gap-y-1.5 text-sm font-bold text-sky-700 md:text-base">
-                                <span>
-                                  {tr('Qty:', '数量:')} {product.qty}
-                                </span>
-                                <span>
-                                  {tr('C/T:', 'c/t:')} {product.ct}
-                                </span>
-                              </div>
-                            </div>
+                              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                  <span className={reviewMetricChipClass}>
+                                    {tr('Qty:', '数量:')} {product.qty}
+                                  </span>
+                                  <span className={reviewMetricChipClass}>
+                                    {tr('C/T:', 'c/t:')} {product.ct}
+                                  </span>
+                                </div>
 
-                            <div className="grid min-w-[240px] grid-cols-3 gap-5 justify-items-center md:min-w-[280px]">
-                              <CircleToggle
-                                tone="select"
-                                active={product.selected}
-                                label={tr('Sel', '選択')}
-                                ariaLabel={tr(`Select ${product.part}`, `${product.part} を選択`)}
-                                onClick={() =>
-                                  setProducts((prev) =>
-                                    prev.map((item) => (item.id === product.id ? {...item, selected: !item.selected} : item)),
-                                  )
-                                }
-                              />
-                              <CircleToggle
-                                tone="success"
-                                active={product.colorAccent}
-                                label={tr('Clr', '色付')}
-                                ariaLabel={tr(`Attach color to ${product.part}`, `${product.part} に色付け`)}
-                                onClick={() =>
-                                  setProducts((prev) =>
-                                    prev.map((item) => (item.id === product.id ? {...item, colorAccent: !item.colorAccent} : item)),
-                                  )
-                                }
-                              />
-                              <CircleToggle
-                                tone="warning"
-                                active={product.override}
-                                label={tr('Ovr', '上書')}
-                                ariaLabel={tr(`Override ${product.part}`, `${product.part} を上書き`)}
-                                onClick={() =>
-                                  setProducts((prev) =>
-                                    prev.map((item) => (item.id === product.id ? {...item, override: !item.override} : item)),
-                                  )
-                                }
-                              />
+                                <div className="ml-auto flex flex-wrap items-center gap-3">
+                                  <CircleToggle
+                                    tone="select"
+                                    active={product.selected}
+                                    label={tr('Sel', '選択')}
+                                    ariaLabel={tr(`Select ${product.part}`, `${product.part} を選択`)}
+                                    onClick={() =>
+                                      setProducts((prev) =>
+                                        prev.map((item) => (item.id === product.id ? {...item, selected: !item.selected} : item)),
+                                      )
+                                    }
+                                  />
+                                  <CircleToggle
+                                    tone="success"
+                                    active={product.colorAccent}
+                                    label={tr('Clr', '色付')}
+                                    ariaLabel={tr(`Attach color to ${product.part}`, `${product.part} に色付け`)}
+                                    onClick={() =>
+                                      setProducts((prev) =>
+                                        prev.map((item) => (item.id === product.id ? {...item, colorAccent: !item.colorAccent} : item)),
+                                      )
+                                    }
+                                  />
+                                  <CircleToggle
+                                    tone="warning"
+                                    active={product.override}
+                                    label={tr('Ovr', '上書')}
+                                    ariaLabel={tr(`Override ${product.part}`, `${product.part} を上書き`)}
+                                    onClick={() =>
+                                      setProducts((prev) =>
+                                        prev.map((item) => (item.id === product.id ? {...item, override: !item.override} : item)),
+                                      )
+                                    }
+                                  />
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
