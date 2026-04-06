@@ -214,10 +214,10 @@ const CircleToggle = ({
   const inactive = 'border-slate-100 bg-white hover:border-slate-200';
   const activeClasses =
     tone === 'select'
-      ? 'border-white bg-sky-700 shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
+      ? 'border-[3px] border-sky-700 bg-white shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
       : tone === 'success'
-        ? 'border-white bg-emerald-700 shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
-        : 'border-white bg-amber-700 shadow-[0_14px_28px_rgba(2,6,23,0.22)]';
+        ? 'border-[3px] border-emerald-700 bg-white shadow-[0_14px_28px_rgba(2,6,23,0.22)]'
+        : 'border-[3px] border-amber-700 bg-white shadow-[0_14px_28px_rgba(2,6,23,0.22)]';
   const labelClasses =
     tone === 'select'
       ? 'text-sky-700'
@@ -232,7 +232,7 @@ const CircleToggle = ({
       aria-pressed={active}
       className={`${base} ${active ? activeClasses : inactive} ${active ? 'font-extrabold' : 'font-bold'}`}
     >
-      <span className={`text-xs tracking-[-0.02em] ${active ? 'text-white' : labelClasses} md:text-sm`}>{label}</span>
+      <span className={`text-xs tracking-[-0.02em] ${labelClasses} md:text-sm`}>{label}</span>
     </button>
   );
 };
