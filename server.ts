@@ -51,6 +51,40 @@ const EMBED_API_RATE_LIMIT_MAX = Number.parseInt(process.env.EMBED_API_RATE_LIMI
 const EMBED_API_RATE_LIMIT_WINDOW_SEC = Number.parseInt(process.env.EMBED_API_RATE_LIMIT_WINDOW_SEC || '60', 10);
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join('/tmp', 'notion-backend-uploads');
 const STARTUP_CACHE_WARMUP_ENABLED = (process.env.STARTUP_CACHE_WARMUP || '1').trim() !== '0';
+const FALLBACK_WORKBOOK_NAME = 'workbook.xlsx';
+const INVALID_FILENAME_CHARS_RE = /[\u0000-\u001f\u007f<>:"/\\|?*]/g;
+const FILENAME_CONTROL_RE = /[\u0000-\u001f\u007f]/g;
+const FILENAME_MOJIBAKE_RE = /[\u0080-\u009f]|(?:Ã.|Â.|ã.|æ.|å.|ç.|Ð.|Ñ.)/;
+const CJK_FILENAME_RE = /[\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff]/;
+const CP1252_UNICODE_TO_BYTE = new Map<number, number>([
+  [0x20ac, 0x80],
+  [0x201a, 0x82],
+  [0x0192, 0x83],
+  [0x201e, 0x84],
+  [0x2026, 0x85],
+  [0x2020, 0x86],
+  [0x2021, 0x87],
+  [0x02c6, 0x88],
+  [0x2030, 0x89],
+  [0x0160, 0x8a],
+  [0x2039, 0x8b],
+  [0x0152, 0x8c],
+  [0x017d, 0x8e],
+  [0x2018, 0x91],
+  [0x2019, 0x92],
+  [0x201c, 0x93],
+  [0x201d, 0x94],
+  [0x2022, 0x95],
+  [0x2013, 0x96],
+  [0x2014, 0x97],
+  [0x02dc, 0x98],
+  [0x2122, 0x99],
+  [0x0161, 0x9a],
+  [0x203a, 0x9b],
+  [0x0153, 0x9c],
+  [0x017e, 0x9e],
+  [0x0178, 0x9f],
+]);
 
 const formatWarmupError = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -345,6 +379,99 @@ const applyRateLimit =
     return next();
   };
 
+const stripDirectorySegments = (value: string): string => value.split(/[/\\]+/).pop() || '';
+
+const encodeSingleByteFilename = (value: string): Buffer | null => {
+  const bytes: number[] = [];
+
+  for (const char of value) {
+    const codePoint = char.codePointAt(0);
+    if (typeof codePoint !== 'number') {
+      return null;
+    }
+
+    if (codePoint <= 0xff) {
+      bytes.push(codePoint);
+      continue;
+    }
+
+    const cp1252Byte = CP1252_UNICODE_TO_BYTE.get(codePoint);
+    if (typeof cp1252Byte !== 'number') {
+      return null;
+    }
+    bytes.push(cp1252Byte);
+  }
+
+  return Buffer.from(bytes);
+};
+
+const tryDecodeUploadedFilename = (value: string): string => {
+  const encoded = encodeSingleByteFilename(value);
+  if (!encoded) {
+    return '';
+  }
+
+  const decoded = encoded.toString('utf8').trim();
+  if (!decoded || decoded.includes('�') || FILENAME_CONTROL_RE.test(decoded) || !CJK_FILENAME_RE.test(decoded)) {
+    return '';
+  }
+  return decoded;
+};
+
+const decodeMultipartFilename = (value: string): string => {
+  const trimmed = stripDirectorySegments(value).trim();
+  if (!trimmed || /^[\x00-\x7F]*$/.test(trimmed) || !FILENAME_MOJIBAKE_RE.test(trimmed)) {
+    return trimmed;
+  }
+
+  const decoded = tryDecodeUploadedFilename(trimmed);
+  if (decoded) {
+    return decoded;
+  }
+
+  return trimmed;
+};
+
+const sanitizeWorkbookFilename = (value: string): string => {
+  const decoded = decodeMultipartFilename(value).normalize('NFC');
+  const withoutPath = stripDirectorySegments(decoded);
+  const cleaned = withoutPath.replace(INVALID_FILENAME_CHARS_RE, '_').replace(/\s+/g, ' ').trim().replace(/^\.+/, '');
+
+  if (!cleaned) {
+    return FALLBACK_WORKBOOK_NAME;
+  }
+
+  const ext = path.extname(cleaned);
+  const stem = (ext ? cleaned.slice(0, -ext.length) : cleaned).trim() || 'workbook';
+  const safeExt = ext && /^[.A-Za-z0-9]+$/.test(ext) ? ext : '.xlsx';
+  return `${stem}${safeExt}`;
+};
+
+const getStoredWorkbookExtension = (filename: string): string => {
+  const ext = path.extname(filename).toLowerCase();
+  return ext === '.xls' || ext === '.xlsx' ? ext : '.xlsx';
+};
+
+const createStoredWorkbookKey = (filename: string): string =>
+  `workbook-${crypto.randomUUID()}${getStoredWorkbookExtension(filename)}`;
+
+const getUploadedWorkbookInfo = (file: Express.Multer.File): {displayName: string; storageKey: string} => {
+  const displayName = sanitizeWorkbookFilename(file.originalname || '');
+  return {
+    displayName,
+    storageKey: file.filename || createStoredWorkbookKey(displayName),
+  };
+};
+
+const resolveWorkbookPath = (fileReference: unknown): string | null => {
+  const requested = readQueryStringValue(fileReference);
+  if (!requested) {
+    return null;
+  }
+
+  return path.isAbsolute(requested) ? requested : path.join(UPLOAD_DIR, path.basename(requested));
+};
+
 // Configure multer for file uploads
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 const storage = multer.diskStorage({
@@ -352,10 +479,10 @@ const storage = multer.diskStorage({
     cb(null, UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
-    cb(null, path.basename(file.originalname));
+    cb(null, createStoredWorkbookKey(sanitizeWorkbookFilename(file.originalname || '')));
   }
 });
-const upload = multer({ storage });
+const upload = multer({ storage, defParamCharset: 'utf8' });
 const distIndexPath = path.join(__dirname, 'dist', 'index.html');
 
 app.use(express.json());
@@ -500,7 +627,8 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
   }
-  res.json({ filename: req.file.originalname });
+  const workbook = getUploadedWorkbookInfo(req.file);
+  res.json({ filename: workbook.displayName, fileKey: workbook.storageKey });
 });
 
 const handleCalendar = async (res: express.Response) => {
@@ -513,14 +641,14 @@ const handleInitializeCaches = async (res: express.Response) => {
   res.json(summary);
 };
 
-const handleDownloadWorkbook = async (fileParam: unknown, res: express.Response) => {
-  const requested = readQueryStringValue(fileParam);
-  if (!requested) {
+const handleDownloadWorkbook = async (fileParam: unknown, nameParam: unknown, res: express.Response) => {
+  const fullPath = resolveWorkbookPath(fileParam);
+  if (!fullPath) {
     return res.status(400).json({ error: 'file is required' });
   }
 
-  const filename = path.basename(requested);
-  const fullPath = path.join(UPLOAD_DIR, filename);
+  const requestedName = readQueryStringValue(nameParam);
+  const downloadName = sanitizeWorkbookFilename(requestedName || path.basename(fullPath));
   try {
     await fs.promises.access(fullPath, fs.constants.R_OK);
   } catch {
@@ -528,15 +656,15 @@ const handleDownloadWorkbook = async (fileParam: unknown, res: express.Response)
   }
 
   res.setHeader('Cache-Control', 'no-store');
-  return res.download(fullPath, filename);
+  return res.download(fullPath, downloadName);
 };
 
 const handleLoadProducts = async (body: any, res: express.Response) => {
   const { filePath, pageId, page_id } = body;
-  if (!filePath) {
+  const fullPath = resolveWorkbookPath(filePath);
+  if (!fullPath) {
     return res.status(400).json({ error: 'filePath is required' });
   }
-  const fullPath = path.isAbsolute(filePath) ? filePath : path.join(UPLOAD_DIR, path.basename(filePath));
   const targetPageId = typeof pageId === 'string' && pageId.trim() ? pageId.trim() : typeof page_id === 'string' ? page_id.trim() : '';
   const data = await workflow.loadProductsFromExcel(fullPath, targetPageId || undefined);
   return res.json(data);
@@ -544,16 +672,24 @@ const handleLoadProducts = async (body: any, res: express.Response) => {
 
 const handleSync = async (body: any, res: express.Response) => {
   const { file_path, page_id, products } = body;
-  if (!file_path || !page_id) throw new Error('file_path and page_id are required');
-  const fullPath = path.isAbsolute(file_path) ? file_path : path.join(UPLOAD_DIR, path.basename(file_path));
+  const fullPath = resolveWorkbookPath(file_path);
+  if (!fullPath || !page_id) throw new Error('file_path and page_id are required');
   const data = await workflow.highlightAndSync(fullPath, page_id, products || []);
+  return res.json(data);
+};
+
+const handleDailyPreview = async (body: any, res: express.Response) => {
+  const { file_path, page_id } = body;
+  const fullPath = resolveWorkbookPath(file_path);
+  if (!fullPath || !page_id) throw new Error('file_path and page_id are required');
+  const data = await dailyWorkflow.refreshDailyWorkbookState(fullPath, page_id);
   return res.json(data);
 };
 
 const handleDailyRun = async (body: any, res: express.Response) => {
   const { file_path, page_id } = body;
-  if (!file_path || !page_id) throw new Error('file_path and page_id are required');
-  const fullPath = path.isAbsolute(file_path) ? file_path : path.join(UPLOAD_DIR, path.basename(file_path));
+  const fullPath = resolveWorkbookPath(file_path);
+  if (!fullPath || !page_id) throw new Error('file_path and page_id are required');
   const data = await dailyWorkflow.runDailyWorkflow(fullPath, page_id);
   return res.json(data);
 };
@@ -1311,6 +1447,7 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
         const state = {
           accessToken: ${JSON.stringify(bootstrapState.accessToken || '')},
           selectedFile: '',
+          selectedFileKey: '',
           selectedCalendarId: '',
           products: [],
           downloadUrl: ''
@@ -1331,7 +1468,7 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
         };
 
         const updateSyncButton = () => {
-          syncButtonEl.disabled = !(state.selectedFile && state.selectedCalendarId);
+          syncButtonEl.disabled = !((state.selectedFileKey || state.selectedFile) && state.selectedCalendarId);
         };
 
         const apiFetch = async (path, init) => {
@@ -1506,12 +1643,12 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
         };
 
         const loadProducts = async () => {
-          if (!state.selectedFile) return;
+          if (!(state.selectedFileKey || state.selectedFile)) return;
           setStatus('Reviewing workbook');
           const response = await apiFetch('/embed-api/load-products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: state.selectedFile })
+            body: JSON.stringify({ filePath: state.selectedFileKey || state.selectedFile })
           });
           const data = await response.json();
           if (!response.ok || !Array.isArray(data)) {
@@ -1564,6 +1701,7 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
             }
 
             state.selectedFile = data.filename;
+            state.selectedFileKey = data.fileKey || data.filename;
             fileNameEl.textContent = 'Uploaded workbook: ' + data.filename;
             updateSyncButton();
             log('File uploaded: ' + data.filename + '.');
@@ -1574,7 +1712,7 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
         });
 
         syncButtonEl.addEventListener('click', async function () {
-          if (!state.selectedFile || !state.selectedCalendarId) return;
+          if (!(state.selectedFileKey || state.selectedFile) || !state.selectedCalendarId) return;
           try {
             setStatus('Syncing to Notion');
             log('Running sync for the selected paint groups.');
@@ -1582,7 +1720,7 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                file_path: state.selectedFile,
+                file_path: state.selectedFileKey || state.selectedFile,
                 page_id: state.selectedCalendarId,
                 products: state.products
               })
@@ -3392,6 +3530,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         const state = {
           accessToken: ${JSON.stringify(bootstrapState.accessToken || '')},
           selectedFile: '',
+          selectedFileKey: '',
           selectedCalendarId: '',
           calendarPages: [],
           calendarLoaded: false,
@@ -3482,7 +3621,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         };
 
         const updateSyncButton = function () {
-          syncButtonEl.disabled = !(state.selectedFile && state.selectedCalendarId && state.products.length) || Boolean(state.removingProductId);
+          syncButtonEl.disabled = !((state.selectedFileKey || state.selectedFile) && state.selectedCalendarId && state.products.length) || Boolean(state.removingProductId);
         };
 
         const updateWorkflowSummary = function () {
@@ -3730,13 +3869,13 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         };
 
         const loadProducts = async function () {
-          if (!state.selectedFile) return;
+          if (!(state.selectedFileKey || state.selectedFile)) return;
           clearError();
           setStatus('Reviewing workbook');
           const response = await apiFetch('/embed-api/load-products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: state.selectedFile, page_id: state.selectedCalendarId || undefined })
+            body: JSON.stringify({ filePath: state.selectedFileKey || state.selectedFile, page_id: state.selectedCalendarId || undefined })
           });
           const data = await response.json();
           if (!response.ok || !Array.isArray(data)) {
@@ -3754,7 +3893,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           state.selectedCalendarId = event.target.value;
           updateWorkflowSummary();
           updateSyncButton();
-          if (state.selectedFile) {
+          if (state.selectedFileKey || state.selectedFile) {
             try {
               await loadProducts();
             } catch (error) {
@@ -3784,6 +3923,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             }
 
             state.selectedFile = data.filename;
+            state.selectedFileKey = data.fileKey || data.filename;
             state.products = [];
             fileNameEl.textContent = data.filename;
             renderProducts();
@@ -3799,7 +3939,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         });
 
         syncButtonEl.addEventListener('click', async function () {
-          if (!state.selectedFile || !state.selectedCalendarId) return;
+          if (!(state.selectedFileKey || state.selectedFile) || !state.selectedCalendarId) return;
           try {
             clearError();
             syncButtonEl.disabled = true;
@@ -3809,7 +3949,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                file_path: state.selectedFile,
+                file_path: state.selectedFileKey || state.selectedFile,
                 page_id: state.selectedCalendarId,
                 products: state.products
               })
@@ -3917,7 +4057,7 @@ app.post('/api/initialize', async (req, res) => {
 
 app.get('/api/download', async (req, res) => {
   try {
-    await handleDownloadWorkbook(req.query?.file, res);
+    await handleDownloadWorkbook(req.query?.file, req.query?.name, res);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -3968,7 +4108,7 @@ app.get(
   requireEmbedScope('embed:read'),
   async (req, res) => {
   try {
-    await handleDownloadWorkbook(req.query?.file, res);
+    await handleDownloadWorkbook(req.query?.file, req.query?.name, res);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -4053,6 +4193,14 @@ app.post('/api/sync', async (req, res) => {
   }
 });
 
+app.post('/api/daily-preview', async (req, res) => {
+  try {
+    await handleDailyPreview(req.body, res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/daily-run', async (req, res) => {
   try {
     await handleDailyRun(req.body, res);
@@ -4078,7 +4226,8 @@ app.post(
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    return res.json({ filename: req.file.originalname });
+    const workbook = getUploadedWorkbookInfo(req.file);
+    return res.json({ filename: workbook.displayName, fileKey: workbook.storageKey });
   }
 );
 
@@ -4102,6 +4251,19 @@ app.post(
   async (req, res) => {
     try {
       await handleSync(req.body, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.post(
+  '/embed-api/daily-preview',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:write'),
+  async (req, res) => {
+    try {
+      await handleDailyPreview(req.body, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

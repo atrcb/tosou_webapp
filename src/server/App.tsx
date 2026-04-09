@@ -13,7 +13,7 @@ import {
   ChevronRight,
   Database,
   FileSpreadsheet,
-  Languages,
+  History,
   LayoutDashboard,
   Minus,
   Moon,
@@ -58,6 +58,12 @@ type DailyRunSummary = {
   groupsCount: number;
   processedRows: number;
   skippedHighlightedRows: number;
+  totalRows: number;
+};
+type DailyPreviewSummary = {
+  alreadyHighlightedRows: number;
+  matchedNotionRows: number;
+  pendingRows: number;
   totalRows: number;
 };
 type LauncherTileConfig = {
@@ -410,33 +416,16 @@ const LanguageToggle = ({
   language: Language;
   onChange: (nextLanguage: Language) => void;
 }) => (
-  <div className="inline-flex items-center gap-1 rounded-full border border-[color:var(--line)] bg-white/60 p-1 text-sm shadow-sm backdrop-blur-xl dark:bg-white/6">
-    <div className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-tertiary)]">
-      <Languages size={15} />
-    </div>
-    <button
-      onClick={() => onChange('ja')}
-      className={`rounded-full px-3 py-1.5 font-medium transition-all ${
-        language === 'ja'
-          ? 'bg-slate-900 text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900'
-          : 'text-[var(--text-secondary)] hover:bg-white/80 dark:hover:bg-white/8'
-      }`}
-      aria-pressed={language === 'ja'}
-    >
-      日本語
-    </button>
-    <button
-      onClick={() => onChange('en')}
-      className={`rounded-full px-3 py-1.5 font-medium transition-all ${
-        language === 'en'
-          ? 'bg-slate-900 text-white shadow-[0_10px_22px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900'
-          : 'text-[var(--text-secondary)] hover:bg-white/80 dark:hover:bg-white/8'
-      }`}
-      aria-pressed={language === 'en'}
-    >
-      EN
-    </button>
-  </div>
+  <button
+    type="button"
+    onClick={() => onChange(language === 'ja' ? 'en' : 'ja')}
+    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--line)] bg-white/60 shadow-sm backdrop-blur-xl transition-all hover:bg-white/80 dark:bg-white/6 dark:hover:bg-white/10"
+    aria-label={language === 'ja' ? 'Switch language to English' : '言語を日本語に切り替え'}
+  >
+    <span className={`leading-none font-semibold text-[var(--text-primary)] ${language === 'ja' ? 'text-[9px]' : 'text-[11px]'}`}>
+      {language === 'ja' ? '日本語' : 'EN'}
+    </span>
+  </button>
 );
 
 const ActivityDrawer = ({
@@ -596,6 +585,7 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [calendarPages, setCalendarPages] = useState<CalendarPage[]>([]);
   const [dailyCalendar, setDailyCalendar] = useState<CalendarPage | null>(null);
+  const [dailyPreviewSummary, setDailyPreviewSummary] = useState<DailyPreviewSummary | null>(null);
   const [dailyRunSummary, setDailyRunSummary] = useState<DailyRunSummary | null>(null);
   const [reviewQuery, setReviewQuery] = useState('');
   const [reviewCategory, setReviewCategory] = useState<ReviewCategory>('all');
@@ -775,6 +765,7 @@ export default function App() {
       clearDownloadArtifact();
     }
 
+    setDailyPreviewSummary(null);
     setDailyRunSummary(null);
 
     setIsSyncing(true);
@@ -1057,6 +1048,72 @@ export default function App() {
     loadProducts();
   }, [selectedFile, selectedFileRef, selectedCalendar?.id, view]);
 
+  useEffect(() => {
+    if (!selectedFileRef || !dailyCalendar || view !== 'daily-generator') {
+      setDailyPreviewSummary(null);
+      return;
+    }
+
+    let isActive = true;
+
+    const refreshDailyPreview = async () => {
+      setIsSyncing(true);
+      setStatus(text('Checking workbook state', 'ブック状態を確認中'));
+
+      try {
+        const response = await apiFetch('/api/daily-preview', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            file_path: selectedFileRef,
+            page_id: dailyCalendar.id,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to refresh workbook state');
+        }
+
+        if (!isActive) {
+          return;
+        }
+
+        const summary = (data.summary ?? null) as DailyPreviewSummary | null;
+        setDailyPreviewSummary(summary);
+        setStatus(text('Workbook ready', 'ブックの準備ができました'));
+
+        if (summary) {
+          addLog(
+            text(
+              `Workbook checked for ${dailyCalendar.title}: ${summary.matchedNotionRows} rows already in Notion, ${summary.pendingRows} rows still pending.`,
+              `${dailyCalendar.title} 用にブックを確認しました: ${summary.matchedNotionRows} 行はすでに Notion にあり、${summary.pendingRows} 行が未処理です。`,
+            ),
+            'success',
+            '⚙️',
+          );
+        }
+      } catch (error) {
+        if (!isActive) {
+          return;
+        }
+
+        setDailyPreviewSummary(null);
+        addLog(text(`Workbook check error: ${error}`, `ブック確認エラー: ${error}`), 'error');
+        setStatus(text('Workbook check failed', 'ブック確認に失敗しました'));
+      } finally {
+        if (isActive) {
+          setIsSyncing(false);
+        }
+      }
+    };
+
+    refreshDailyPreview();
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedFileRef, dailyCalendar?.id, view]);
+
   const refreshProductsFromServer = async (sourceProducts: Product[]) => {
     if (!selectedFileRef) {
       return false;
@@ -1181,6 +1238,7 @@ export default function App() {
 
     setIsSyncing(true);
     setProgress(15);
+    setDailyPreviewSummary(null);
     setDailyRunSummary(null);
     setStatus(text('Running generator', 'ジェネレーターを実行中'));
     addLog(
@@ -1256,6 +1314,7 @@ export default function App() {
   };
 
   const selectedCount = products.filter((product) => product.selected).length;
+  const syncReadyCount = products.filter((product) => product.selected && (!product.alreadySynced || product.override)).length;
   const recentLogs = logs.slice(-3).reverse();
   const normalizedQuery = reviewQuery.trim().toLowerCase();
   const filteredProducts = normalizedQuery
@@ -1304,7 +1363,7 @@ export default function App() {
     {
       label: text('Review', '確認'),
       detail: products.length
-        ? text(`${selectedCount} items selected`, `${selectedCount} 件を選択中`)
+        ? text(`${syncReadyCount} items ready to sync`, `${syncReadyCount} 件が同期可能`)
         : text('Check the rows', '行を確認'),
       state: (selectedFile ? 'current' : 'upcoming') as StepState,
     },
@@ -1324,7 +1383,7 @@ export default function App() {
   const heroBodyClass = embedMode
     ? 'max-w-xl text-sm text-[var(--text-secondary)] md:text-base'
     : 'max-w-xl text-base text-[var(--text-secondary)] md:text-lg';
-  const shellPaddingClass = embedMode ? 'px-3 pb-5 pt-3 md:px-4' : 'px-4 pb-8 pt-4 md:px-6 lg:px-8';
+  const shellPaddingClass = embedMode ? 'px-2.5 pb-5 pt-3 md:px-3' : 'px-3 pb-8 pt-4 md:px-5 lg:px-6';
   const shellHeaderClass = embedMode
     ? 'glass-toolbar sticky top-3 z-20 flex items-center justify-between rounded-[22px] px-3 py-2.5 md:px-4'
     : 'glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5';
@@ -1445,7 +1504,7 @@ export default function App() {
     },
     {
       key: 'activity',
-      icon: LayoutDashboard,
+      icon: History,
       accent: 'violet' as LauncherAccent,
       label: tr('Activity', 'アクティビティ'),
       subtitle: tr('Open recent updates', '最近の更新を表示'),
@@ -1577,7 +1636,7 @@ export default function App() {
             <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
               <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Selection', '選択')}</p>
               <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
-                {tr(`${selectedCount} selected rows`, `${selectedCount} 行を選択中`)}
+                {tr(`${syncReadyCount} ready to sync`, `${syncReadyCount} 行が同期可能`)}
               </p>
             </div>
           </div>
@@ -1886,7 +1945,7 @@ export default function App() {
               <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Products', '製品')}</h2>
               <p className="mt-2 text-sm text-[var(--text-secondary)]">
                 {products.length
-                  ? tr(`${selectedCount} rows selected for sync.`, `${selectedCount} 行を同期対象に選択中です。`)
+                  ? tr(`${syncReadyCount} rows ready for sync.`, `${syncReadyCount} 行が同期可能です。`)
                   : tr('Load a workbook to review the rows.', '行を確認するにはブックを読み込んでください。')}
               </p>
               {products.length > 0 && (
@@ -2145,7 +2204,7 @@ export default function App() {
               </div>
               <div className="rounded-[22px] border border-[color:var(--line)] bg-white/56 px-4 py-3 dark:bg-white/5">
                 <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Selection', '選択')}</p>
-                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{tr(`${selectedCount} ready to sync`, `${selectedCount} 件が同期可能`)}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{tr(`${syncReadyCount} ready to sync`, `${syncReadyCount} 件が同期可能`)}</p>
               </div>
             </div>
 
@@ -2291,6 +2350,7 @@ export default function App() {
                     key={page.id}
                     onClick={() => {
                       setDailyCalendar(page);
+                      setDailyPreviewSummary(null);
                       setDailyRunSummary(null);
                     }}
                     className={`rounded-[24px] border px-4 py-4 text-left transition-all ${
@@ -2344,6 +2404,41 @@ export default function App() {
                 </p>
               </div>
             </div>
+
+            {dailyPreviewSummary && (
+              <div className="space-y-2 rounded-[24px] border border-[color:var(--line)] bg-white/55 p-4 dark:bg-white/6">
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Workbook scan', 'ブックスキャン')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                    {tr(`${dailyPreviewSummary.totalRows} total rows checked`, `${dailyPreviewSummary.totalRows} 行を確認`)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Already highlighted', '既存ハイライト')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                    {tr(
+                      `${dailyPreviewSummary.alreadyHighlightedRows} rows already highlighted`,
+                      `${dailyPreviewSummary.alreadyHighlightedRows} 行は既にハイライト済み`,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Found in Notion', 'Notion照合')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                    {tr(
+                      `${dailyPreviewSummary.matchedNotionRows} rows matched and highlighted`,
+                      `${dailyPreviewSummary.matchedNotionRows} 行を Notion と照合してハイライト`,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Pending rows', '未処理行')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                    {tr(`${dailyPreviewSummary.pendingRows} rows still pending`, `${dailyPreviewSummary.pendingRows} 行が未処理`)}
+                  </p>
+                </div>
+              </div>
+            )}
 
             <button
               onClick={handleDailyRun}
@@ -2539,18 +2634,18 @@ export default function App() {
                       </button>
                     </div>
                   )}
-                  <button
-                    onClick={() => handleLanguageChange(language === 'ja' ? 'en' : 'ja')}
-                    className="secondary-button px-3 py-2 md:hidden"
-                    aria-label={tr('Switch language', '言語を切り替え')}
-                  >
-                    {language === 'ja' ? 'EN' : '日本語'}
-                  </button>
+                  <div className="md:hidden">
+                    <LanguageToggle language={language} onChange={handleLanguageChange} />
+                  </div>
                   <div className="hidden md:block">
                     <LanguageToggle language={language} onChange={handleLanguageChange} />
                   </div>
-                  <button onClick={() => setActivityOpen(true)} className="secondary-button hidden md:inline-flex">
-                    {tr('Activity', 'アクティビティ')}
+                  <button
+                    onClick={() => setActivityOpen(true)}
+                    className="icon-button hidden md:inline-flex"
+                    aria-label={tr('Activity', 'アクティビティ')}
+                  >
+                    <History size={18} />
                   </button>
                   <button onClick={toggleTheme} className="icon-button" aria-label={tr('Toggle theme', 'テーマを切り替え')}>
                     {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}

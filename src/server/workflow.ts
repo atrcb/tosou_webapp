@@ -31,6 +31,12 @@ type ProductLineMatch = {
   partPageId: string | null;
 };
 
+const EXCEL_HIGHLIGHT_FILL: ExcelJS.FillPattern = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb: 'FFFFFF00' },
+};
+
 function isRowHighlighted(row: ExcelJS.Row): boolean {
   for (let i = 1; i <= 40; i++) {
     const cell = row.getCell(i);
@@ -117,6 +123,12 @@ function buildExistingColorPageIndex(existingPages: any[]): Record<string, Exist
   }
 
   return existingByColor;
+}
+
+function applyHighlightToRow(row: ExcelJS.Row) {
+  for (let i = 1; i <= 10; i += 1) {
+    row.getCell(i).fill = EXCEL_HIGHLIGHT_FILL;
+  }
 }
 
 async function annotateProductsWithNotionState(products: WorkflowProduct[], pageId?: string): Promise<WorkflowProduct[]> {
@@ -264,7 +276,39 @@ export async function loadProductsFromExcel(filePath: string, pageId?: string) {
     }
   }
 
-  return annotateProductsWithNotionState(out, pageId);
+  const annotatedProducts = await annotateProductsWithNotionState(out, pageId);
+  if (!pageId) {
+    return annotatedProducts;
+  }
+
+  const syncedRowNumbers = new Set<number>();
+  const refreshedProducts = annotatedProducts.map((product) => {
+    if (product.alreadySynced) {
+      (product.sourceRows || []).forEach((rowNumber) => syncedRowNumbers.add(rowNumber));
+      return { ...product, selected: true };
+    }
+    return product;
+  });
+
+  if (syncedRowNumbers.size === 0) {
+    return refreshedProducts;
+  }
+
+  let workbookChanged = false;
+  ws.eachRow((row, rowNumber) => {
+    if (rowNumber === 1 || !syncedRowNumbers.has(rowNumber) || isRowHighlighted(row)) {
+      return;
+    }
+    applyHighlightToRow(row);
+    workbookChanged = true;
+  });
+
+  if (workbookChanged) {
+    const workbookBuffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
+    await fs.writeFile(filePath, workbookBuffer);
+  }
+
+  return refreshedProducts;
 }
 
 export async function highlightAndSync(filePath: string, pageId: string, products: any[]) {
@@ -372,21 +416,22 @@ export async function highlightAndSync(filePath: string, pageId: string, product
       : [];
     const isOverride = uiProd.override;
     const chosenCt = logic.ceilNumber(uiProd.ct);
-    
-    if (isOverride) {
-      actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date, override: true });
-      continue;
-    }
 
     if (rowsToTouch.length > 0) {
       rowsToTouch.forEach((entry) => {
         if (entry.wasHighlighted) return;
-        for (let i = 1; i <= 10; i++) {
-          const cell = entry.row.getCell(i);
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
-        }
+        applyHighlightToRow(entry.row);
         entry.wasHighlighted = true;
       });
+    }
+
+    if (uiProd.alreadySynced && !isOverride) {
+      continue;
+    }
+    
+    if (isOverride) {
+      actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date, override: true });
+      continue;
     }
 
     actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date });

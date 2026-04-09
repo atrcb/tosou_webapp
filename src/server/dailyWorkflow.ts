@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import fs from 'fs/promises';
 import * as logic from './logic.js';
 import * as notion from './notion.js';
+import * as notionUtils from './notionUtils.js';
 
 const NOTION_PAGE_ICON = {type: 'emoji', emoji: '⚙️'};
 const COLOR_PAREN_RE = /(?:（|\()([^)）]+)(?:）|\))$/;
@@ -13,9 +14,18 @@ type DailyAccumulatorItem = {
   display: string;
   fullName: string;
   qty: string;
+  rowNumber: number;
+};
+
+type DailyEntry = {
+  displayName: string;
+  finishQty: string;
+  sourceRows: number[];
+  totalCycleTime: number;
 };
 
 type DailyGroup = {
+  entries: DailyEntry[];
   displayNames: string[];
   finishQty: string[];
   totalCycleTime: number;
@@ -27,6 +37,32 @@ type DailyRunSummary = {
   processedRows: number;
   skippedHighlightedRows: number;
   totalRows: number;
+};
+
+type DailyPreviewSummary = {
+  alreadyHighlightedRows: number;
+  matchedNotionRows: number;
+  pendingRows: number;
+  totalRows: number;
+};
+
+type ExistingColorPage = {
+  id: string;
+  properties: Record<string, any>;
+};
+
+type ParsedDailyNotionLine = {
+  idx: number;
+  mentionId: string | null;
+  partSuffixText: string;
+  qty: string;
+  trial: string;
+};
+
+const EXCEL_HIGHLIGHT_FILL: ExcelJS.FillPattern = {
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: {argb: 'FFFFFF00'},
 };
 
 function isRowHighlighted(row: ExcelJS.Row): boolean {
@@ -214,6 +250,7 @@ function buildDailyGroups(
         display: displayName,
         fullName: logic.cleanStr(fullName),
         qty: qtyString,
+        rowNumber,
       });
       itemsByKey.set(groupingKey, items);
       processedRowNumbers.add(rowNumber);
@@ -224,6 +261,7 @@ function buildDailyGroups(
 
   for (const [color, itemsByKey] of perColor.entries()) {
     const group: DailyGroup = {
+      entries: [],
       displayNames: [],
       finishQty: [],
       totalCycleTime: 0,
@@ -233,14 +271,28 @@ function buildDailyGroups(
       const fullNames = new Set(items.map((item) => logic.cleanStr(item.fullName)).filter(Boolean));
       if (fullNames.size <= 1) {
         items.forEach((item) => {
+          const entry: DailyEntry = {
+            displayName: item.display,
+            finishQty: item.qty,
+            sourceRows: [item.rowNumber],
+            totalCycleTime: item.ct,
+          };
+          group.entries.push(entry);
           group.displayNames.push(item.display);
           group.finishQty.push(item.qty);
           group.totalCycleTime += item.ct;
         });
       } else {
-        group.displayNames.push(items[0]?.display || '');
-        group.finishQty.push(firstNonEmptyQty(items));
-        group.totalCycleTime += items.reduce((sum, item) => sum + item.ct, 0);
+        const entry: DailyEntry = {
+          displayName: items[0]?.display || '',
+          finishQty: firstNonEmptyQty(items),
+          sourceRows: Array.from(new Set(items.map((item) => item.rowNumber))),
+          totalCycleTime: items.reduce((sum, item) => sum + item.ct, 0),
+        };
+        group.entries.push(entry);
+        group.displayNames.push(entry.displayName);
+        group.finishQty.push(entry.finishQty);
+        group.totalCycleTime += entry.totalCycleTime;
       }
     }
 
@@ -255,6 +307,148 @@ function buildDailyGroups(
     skippedHighlightedRows: highlightedRowNumbers.size,
     totalRows,
   };
+}
+
+function buildExistingColorPageIndex(existingPages: any[]): Record<string, ExistingColorPage> {
+  const existingByColor: Record<string, ExistingColorPage> = {};
+
+  for (const page of existingPages) {
+    const props = (page as any).properties || {};
+    const titleArr = props['色']?.title;
+    if (!titleArr?.length) {
+      continue;
+    }
+
+    const colorKey = logic.normalizeColorKey(titleArr[0].plain_text?.trim() || '');
+    if (!colorKey) {
+      continue;
+    }
+
+    existingByColor[colorKey] = page as ExistingColorPage;
+  }
+
+  return existingByColor;
+}
+
+function splitDailyDisplayName(displayName: string): {partText: string; trial: string} {
+  const separatorIndex = displayName.indexOf('・');
+  if (separatorIndex < 0) {
+    return {partText: logic.cleanStr(displayName), trial: ''};
+  }
+
+  const trial = logic.cleanStr(displayName.slice(0, separatorIndex));
+  const partText = logic.cleanStr(displayName.slice(separatorIndex + 1));
+  return partText ? {partText, trial} : {partText: logic.cleanStr(displayName), trial: ''};
+}
+
+function collectPlainText(fragments: any[]): string {
+  return fragments
+    .map((fragment) => {
+      if (fragment.type !== 'text') {
+        return '';
+      }
+      return fragment.text?.content || '';
+    })
+    .join('');
+}
+
+function parseDailyNotionLines(partsRt: any[], qtyRt: any[]): ParsedDailyNotionLine[] {
+  const partLines = notionUtils.richTextToLines(partsRt || []);
+  const qtyLines = notionUtils.richTextToLines(qtyRt || []);
+
+  return partLines.map((line, idx) => {
+    let mentionId: string | null = null;
+    let sawSeparator = false;
+    let trialText = '';
+    let partSuffixText = '';
+
+    for (const fragment of line) {
+      if (fragment.type === 'mention' && fragment.mention?.type === 'page') {
+        mentionId = fragment.mention.page.id;
+        continue;
+      }
+
+      if (fragment.type !== 'text') {
+        continue;
+      }
+
+      let remaining = fragment.text?.content || '';
+      if (!remaining || remaining === '\n') {
+        continue;
+      }
+
+      while (remaining.length > 0) {
+        if (!sawSeparator) {
+          const separatorIndex = remaining.indexOf('・');
+          if (separatorIndex < 0) {
+            if (!mentionId && !partSuffixText) {
+              trialText += remaining;
+            } else {
+              partSuffixText += remaining;
+            }
+            remaining = '';
+            continue;
+          }
+
+          trialText += remaining.slice(0, separatorIndex);
+          remaining = remaining.slice(separatorIndex + 1);
+          sawSeparator = true;
+          continue;
+        }
+
+        partSuffixText += remaining;
+        remaining = '';
+      }
+    }
+
+    if (!sawSeparator) {
+      if (!mentionId) {
+        partSuffixText = trialText + partSuffixText;
+      }
+      trialText = '';
+    }
+
+    return {
+      idx,
+      mentionId,
+      partSuffixText: logic.cleanStr(partSuffixText),
+      qty: notionUtils.normalizeQtyStr(collectPlainText(qtyLines[idx] || [])),
+      trial: logic.cleanStr(trialText),
+    };
+  });
+}
+
+function entryMatchesDailyNotionLine(
+  line: ParsedDailyNotionLine,
+  entry: DailyEntry,
+  partsMap: Record<string, string>,
+): boolean {
+  const {partText, trial} = splitDailyDisplayName(entry.displayName);
+  const entryQty = notionUtils.normalizeQtyStr(entry.finishQty);
+
+  if (entryQty !== line.qty) {
+    return false;
+  }
+
+  if (logic.cleanStr(trial) !== logic.cleanStr(line.trial)) {
+    return false;
+  }
+
+  const bestKey = resolveBestPartKey(partText, partsMap);
+  if (bestKey && partsMap[bestKey]) {
+    if (line.mentionId !== partsMap[bestKey]) {
+      return false;
+    }
+
+    const suffix = logic.cleanStr(partText.slice(bestKey.length));
+    if (!suffix) {
+      return true;
+    }
+
+    return logic.normalizePartKey(line.partSuffixText) === logic.normalizePartKey(suffix);
+  }
+
+  return logic.normalizePartKey(line.partSuffixText) === logic.normalizePartKey(partText);
 }
 
 function resolveBestPartKey(partText: string, partsMap: Record<string, string>): string | null {
@@ -366,13 +560,78 @@ function highlightProcessedRows(ws: ExcelJS.Worksheet, rowNumbers: Set<number>) 
     }
 
     for (let i = 1; i <= 10; i += 1) {
-      row.getCell(i).fill = {
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: {argb: 'FFFFFF00'},
-      };
+      row.getCell(i).fill = EXCEL_HIGHLIGHT_FILL;
     }
   });
+}
+
+export async function refreshDailyWorkbookState(filePath: string, pageId: string) {
+  const wb = new ExcelJS.Workbook();
+  const workbookReadPromise = wb.xlsx.readFile(filePath);
+  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
+  const partsMapPromise = notion.buildPartsMap();
+
+  await workbookReadPromise;
+
+  const nestedDbs = await nestedDbsPromise;
+  if (nestedDbs.length === 0) {
+    throw new Error("No nested '作業内容' database found in selected calendar page.");
+  }
+
+  const [existingPages, partsMap] = await Promise.all([
+    notion.getAllPages(nestedDbs[0]),
+    partsMapPromise,
+  ]);
+
+  const ws = wb.worksheets[0];
+  const headers = getHeaders(ws);
+  const lotNumbersChanged = applyLotNumbersToWorksheet(ws, headers);
+  const {groups, processedRowNumbers, skippedHighlightedRows, totalRows} = buildDailyGroups(ws, headers);
+  const existingByColor = buildExistingColorPageIndex(existingPages);
+  const rowNumbersToHighlight = new Set<number>();
+
+  for (const [color, group] of Object.entries(groups)) {
+    const page = existingByColor[color];
+    if (!page) {
+      continue;
+    }
+
+    const props = page.properties || {};
+    const parsedLines = parseDailyNotionLines(props['品番']?.rich_text || [], props['数量']?.rich_text || []);
+    const matchedLineIndexes = new Set<number>();
+
+    for (const entry of group.entries) {
+      const matchedLine = parsedLines.find(
+        (line) => !matchedLineIndexes.has(line.idx) && entryMatchesDailyNotionLine(line, entry, partsMap),
+      );
+
+      if (!matchedLine) {
+        continue;
+      }
+
+      matchedLineIndexes.add(matchedLine.idx);
+      entry.sourceRows.forEach((rowNumber) => rowNumbersToHighlight.add(rowNumber));
+    }
+  }
+
+  highlightProcessedRows(ws, rowNumbersToHighlight);
+
+  if (lotNumbersChanged || rowNumbersToHighlight.size > 0) {
+    const workbookBuffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
+    await fs.writeFile(filePath, workbookBuffer);
+  }
+
+  const summary: DailyPreviewSummary = {
+    alreadyHighlightedRows: skippedHighlightedRows,
+    matchedNotionRows: rowNumbersToHighlight.size,
+    pendingRows: Math.max(0, processedRowNumbers.size - rowNumbersToHighlight.size),
+    totalRows,
+  };
+
+  return {
+    success: true,
+    summary,
+  };
 }
 
 export async function runDailyWorkflow(filePath: string, pageId: string) {
