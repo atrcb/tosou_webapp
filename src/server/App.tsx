@@ -15,7 +15,6 @@ import {
   FileSpreadsheet,
   Languages,
   LayoutDashboard,
-  Menu,
   Minus,
   Moon,
   Plus,
@@ -288,30 +287,6 @@ const Panel = ({
   </div>
 );
 
-const NavItem = ({
-  icon: Icon,
-  label,
-  active,
-  onClick,
-}: {
-  icon: any;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) => (
-  <button
-    onClick={onClick}
-    className={`flex w-full items-center gap-3 rounded-[18px] px-3.5 py-3 text-left text-sm transition-all ${
-      active
-        ? 'bg-slate-900 text-white shadow-[0_16px_30px_rgba(15,23,42,0.18)] dark:bg-white dark:text-slate-900'
-        : 'text-[var(--text-secondary)] hover:bg-white/70 dark:hover:bg-white/8'
-    }`}
-  >
-    <Icon size={18} />
-    <span className="font-medium">{label}</span>
-  </button>
-);
-
 const CircleToggle = ({
   active,
   tone,
@@ -573,10 +548,6 @@ export default function App() {
     }
     return 1;
   });
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    if (embedMode || typeof window === 'undefined') return false;
-    return window.innerWidth >= 1024;
-  });
   const [activityOpen, setActivityOpen] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([
     {
@@ -670,18 +641,10 @@ export default function App() {
     );
   };
 
-  const closeSidebarOnMobile = () => {
-    if (embedMode || typeof window === 'undefined') return;
-    if (window.innerWidth < 1024) {
-      setSidebarOpen(false);
-    }
-  };
-
   const navigateTo = (nextView: View) => {
     if (!viewSupportsWorkbookDownload(nextView) && !confirmLeaveWithPendingDownload()) {
       return;
     }
-    closeSidebarOnMobile();
     setViewHistory((prev) => (prev[prev.length - 1] === nextView ? prev : [...prev, nextView]));
   };
 
@@ -690,7 +653,6 @@ export default function App() {
     if (!viewSupportsWorkbookDownload(previousView) && !confirmLeaveWithPendingDownload()) {
       return;
     }
-    closeSidebarOnMobile();
     setViewHistory((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
   };
 
@@ -1308,10 +1270,11 @@ export default function App() {
   const shellHeaderClass = embedMode
     ? 'glass-toolbar sticky top-3 z-20 flex items-center justify-between rounded-[22px] px-3 py-2.5 md:px-4'
     : 'glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5';
-  const contentWidthClass = embedMode ? 'mx-auto mt-4 max-w-[980px]' : 'mx-auto mt-6 max-w-[1200px]';
-  const heroLayoutClass = embedMode ? 'relative grid gap-5 xl:grid-cols-[minmax(0,1fr)_248px]' : 'relative grid gap-8 xl:grid-cols-[minmax(0,1fr)_320px]';
+  const shellInnerWidthClass = embedMode ? 'mx-auto max-w-[980px]' : 'mx-auto max-w-[1200px]';
+  const contentWidthClass = embedMode ? 'mt-4' : 'mt-6';
+  const heroLayoutClass = embedMode ? 'relative space-y-5' : 'relative space-y-8';
   const homeLauncherGridClass = embedMode ? 'grid max-w-[640px] gap-3 sm:grid-cols-2' : 'grid max-w-[860px] gap-5 sm:grid-cols-2';
-  const systemLauncherGridClass = embedMode ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-4 sm:grid-cols-3 xl:grid-cols-1';
+  const systemLauncherGridClass = embedMode ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-4 md:grid-cols-3';
   const homeInfoGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[1.15fr_0.85fr]' : 'grid gap-6 lg:grid-cols-[1.15fr_0.85fr]';
   const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
   const workflowShellStyle: React.CSSProperties = {overflowAnchor: 'none'};
@@ -1467,24 +1430,9 @@ export default function App() {
                 )}
               </p>
             </div>
-
-            <div className="flex flex-wrap gap-3 pt-2">
-              <div className="status-pill">
-                <span className={`h-2 w-2 rounded-full ${isBusy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                {localize(status)}
-              </div>
-              <div className="status-pill">
-                <Calendar size={14} />
-                {selectedCalendar ? selectedCalendar.title : tr('No page selected', 'ページ未選択')}
-              </div>
-              <div className="status-pill">
-                <FileSpreadsheet size={14} />
-                {selectedFile ?? tr('No workbook selected', 'ブック未選択')}
-              </div>
-            </div>
           </div>
 
-          <div className="max-w-[248px] space-y-3 xl:justify-self-end">
+          <div className="space-y-3">
             <div>
               <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('System', 'システム')}</p>
               <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Controls', 'コントロール')}</h2>
@@ -2453,163 +2401,86 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-transparent text-[var(--text-primary)]">
-      <div className="relative min-h-screen lg:flex">
-        {!embedMode && (
-          <AnimatePresence>
-            {sidebarOpen && (
-              <>
-                <motion.button
-                  aria-label={tr('Close sidebar', 'サイドバーを閉じる')}
-                  initial={reducedMotion ? false : {opacity: 0}}
-                  animate={{opacity: 1}}
-                  exit={reducedMotion ? {opacity: 1} : {opacity: 0}}
-                  transition={{duration: reducedMotion ? 0 : 0.18}}
-                  onClick={() => setSidebarOpen(false)}
-                  className="fixed inset-0 z-30 bg-slate-950/12 backdrop-blur-[2px] lg:hidden"
-                />
-                <motion.aside
-                  initial={reducedMotion ? false : {opacity: 0, x: -24}}
-                  animate={{opacity: 1, x: 0}}
-                  exit={reducedMotion ? {opacity: 1, x: 0} : {opacity: 0, x: -24}}
-                  transition={{duration: reducedMotion ? 0 : 0.18}}
-                  className="fixed inset-y-4 left-4 z-40 w-[280px] lg:static lg:inset-auto lg:z-0 lg:w-[300px] lg:flex-shrink-0 lg:px-4 lg:py-4"
-                >
-                  <div className="app-panel-strong flex h-full flex-col rounded-[32px] p-4">
-                    <div className="border-b border-[color:var(--line)] px-2 pb-5">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-slate-900 text-lg font-semibold text-white shadow-[0_18px_36px_rgba(15,23,42,0.16)] dark:bg-white dark:text-slate-900">
-                          P
-                        </div>
-                        <div>
-                          <p className="text-base font-semibold tracking-[-0.03em]">{tr('Painting Team', '塗装チーム')}</p>
-                          <p className="text-sm text-[var(--text-secondary)]">{tr('Workflow utilities', 'ワークフローツール')}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <nav className="mt-6 space-y-2">
-                      <NavItem icon={LayoutDashboard} label={tr('Home', 'ホーム')} active={view === 'home'} onClick={() => navigateTo('home')} />
-                      <NavItem
-                        icon={RefreshCw}
-                        label={tr('Workflow', 'ワークフロー')}
-                        active={view === 'workflow-manager'}
-                        onClick={() => navigateTo('workflow-manager')}
-                      />
-                      <NavItem
-                        icon={Play}
-                        label={tr('Daily Generator', '日次生成')}
-                        active={view === 'daily-generator'}
-                        onClick={() => navigateTo('daily-generator')}
-                      />
-                      <NavItem
-                        icon={Settings}
-                        label={tr('Settings', '設定')}
-                        active={view === 'settings'}
-                        onClick={() => navigateTo('settings')}
-                      />
-                    </nav>
-
-                    <div className="mt-auto rounded-[24px] border border-[color:var(--line)] bg-white/55 p-4 dark:bg-white/4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-emerald-500 text-white">
-                          <Database size={18} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">{tr('Notion connected', 'Notion 接続済み')}</p>
-                          <p className="text-sm text-[var(--text-secondary)]">{localize(status)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.aside>
-              </>
-            )}
-          </AnimatePresence>
-        )}
-
-        <main className="min-w-0 flex-1">
+      <div className="relative min-h-screen">
+        <main className="min-w-0">
           <div className={shellPaddingClass}>
-            <header className={shellHeaderClass}>
-              <div className="flex items-center gap-3 md:gap-4">
-                {!embedMode && (
-                  <button onClick={() => setSidebarOpen((prev) => !prev)} className="icon-button" aria-label={tr('Toggle sidebar', 'サイドバーを切り替え')}>
-                    {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
-                  </button>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                    <span>{tr('Painting Team', '塗装チーム')}</span>
-                    <ChevronRight size={14} />
-                    <span className="truncate text-[var(--text-primary)]">{localize(VIEW_LABELS[view])}</span>
+            <div className={shellInnerWidthClass}>
+              <header className={shellHeaderClass}>
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                      <span>{tr('Painting Team', '塗装チーム')}</span>
+                      <ChevronRight size={14} />
+                      <span className="truncate text-[var(--text-primary)]">{localize(VIEW_LABELS[view])}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <div className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/55 px-3 py-1.5 text-sm text-[var(--text-secondary)] dark:bg-white/5 md:flex">
-                  <span className={`h-2 w-2 rounded-full ${isBusy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                  {localize(status)}
-                </div>
-                {embedMode && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setEmbedZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
-                      className="icon-button"
-                      aria-label={tr('Zoom out', '縮小')}
-                    >
-                      <Minus size={18} />
-                    </button>
-                    <button
-                      onClick={() => setEmbedZoom(1)}
-                      className="status-pill border-slate-200 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
-                      aria-label={tr('Reset zoom', 'ズームをリセット')}
-                    >
-                      {Math.round(embedZoom * 100)}%
-                    </button>
-                    <button
-                      onClick={() => setEmbedZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 1.4))}
-                      className="icon-button"
-                      aria-label={tr('Zoom in', '拡大')}
-                    >
-                      <Plus size={18} />
-                    </button>
+                <div className="flex items-center gap-2">
+                  <div className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/55 px-3 py-1.5 text-sm text-[var(--text-secondary)] dark:bg-white/5 md:flex">
+                    <span className={`h-2 w-2 rounded-full ${isBusy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                    {localize(status)}
                   </div>
-                )}
-                <button
-                  onClick={() => handleLanguageChange(language === 'ja' ? 'en' : 'ja')}
-                  className="secondary-button px-3 py-2 md:hidden"
-                  aria-label={tr('Switch language', '言語を切り替え')}
-                >
-                  {language === 'ja' ? 'EN' : '日本語'}
-                </button>
-                <div className="hidden md:block">
-                  <LanguageToggle language={language} onChange={handleLanguageChange} />
-                </div>
-                <button onClick={() => setActivityOpen(true)} className="secondary-button hidden md:inline-flex">
-                  {tr('Activity', 'アクティビティ')}
-                </button>
-                <button onClick={toggleTheme} className="icon-button" aria-label={tr('Toggle theme', 'テーマを切り替え')}>
-                  {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
-                </button>
-              </div>
-            </header>
-
-            <div className={contentWidthClass}>
-              <div style={embedZoomStyle}>
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={view}
-                    initial={reducedMotion ? false : {opacity: 0, y: 8}}
-                    animate={{opacity: 1, y: 0}}
-                    exit={reducedMotion ? {opacity: 1, y: 0} : {opacity: 0, y: -8}}
-                    transition={{duration: reducedMotion ? 0 : 0.18}}
+                  {embedMode && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setEmbedZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
+                        className="icon-button"
+                        aria-label={tr('Zoom out', '縮小')}
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <button
+                        onClick={() => setEmbedZoom(1)}
+                        className="status-pill border-slate-200 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
+                        aria-label={tr('Reset zoom', 'ズームをリセット')}
+                      >
+                        {Math.round(embedZoom * 100)}%
+                      </button>
+                      <button
+                        onClick={() => setEmbedZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 1.4))}
+                        className="icon-button"
+                        aria-label={tr('Zoom in', '拡大')}
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => handleLanguageChange(language === 'ja' ? 'en' : 'ja')}
+                    className="secondary-button px-3 py-2 md:hidden"
+                    aria-label={tr('Switch language', '言語を切り替え')}
                   >
-                    {view === 'home' && <HomeView />}
-                    {view === 'workflow-manager' && workflowManagerView}
-                    {view === 'daily-generator' && <DailyGeneratorView />}
-                    {view === 'settings' && <SettingsView />}
-                  </motion.div>
-                </AnimatePresence>
+                    {language === 'ja' ? 'EN' : '日本語'}
+                  </button>
+                  <div className="hidden md:block">
+                    <LanguageToggle language={language} onChange={handleLanguageChange} />
+                  </div>
+                  <button onClick={() => setActivityOpen(true)} className="secondary-button hidden md:inline-flex">
+                    {tr('Activity', 'アクティビティ')}
+                  </button>
+                  <button onClick={toggleTheme} className="icon-button" aria-label={tr('Toggle theme', 'テーマを切り替え')}>
+                    {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+                  </button>
+                </div>
+              </header>
+
+              <div className={contentWidthClass}>
+                <div style={embedZoomStyle}>
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={view}
+                      initial={reducedMotion ? false : {opacity: 0, y: 8}}
+                      animate={{opacity: 1, y: 0}}
+                      exit={reducedMotion ? {opacity: 1, y: 0} : {opacity: 0, y: -8}}
+                      transition={{duration: reducedMotion ? 0 : 0.18}}
+                    >
+                      {view === 'home' && <HomeView />}
+                      {view === 'workflow-manager' && workflowManagerView}
+                      {view === 'daily-generator' && <DailyGeneratorView />}
+                      {view === 'settings' && <SettingsView />}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
               </div>
             </div>
           </div>
