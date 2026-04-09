@@ -589,6 +589,7 @@ export default function App() {
 
   const [selectedCalendar, setSelectedCalendar] = useState<CalendarPage | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [selectedFileKey, setSelectedFileKey] = useState<string | null>(null);
   const [defaultWorkbookDir, setDefaultWorkbookDir] = useState<FileSystemDirectoryHandle | null>(null);
   const [downloadArtifact, setDownloadArtifact] = useState<DownloadArtifact | null>(null);
   const [hasPendingWorkbookDownload, setHasPendingWorkbookDownload] = useState(false);
@@ -605,6 +606,7 @@ export default function App() {
   const tr = (en: string, ja: string) => (language === 'ja' ? ja : en);
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
   const isBusy = isSyncing || isInitializingCaches;
+  const selectedFileRef = selectedFileKey ?? selectedFile;
   const viewSupportsWorkbookDownload = (targetView: View) =>
     targetView === 'home' || targetView === 'workflow-manager' || targetView === 'daily-generator';
   const getProductSyncKey = (product: Product) =>
@@ -677,8 +679,11 @@ export default function App() {
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const handleLanguageChange = (nextLanguage: Language) => setLanguage(nextLanguage);
 
-  const buildWorkbookDownloadUrl = async (filename: string) => {
-    const params = new URLSearchParams({file: filename});
+  const buildWorkbookDownloadUrl = async (serverFile: string, downloadName: string) => {
+    const params = new URLSearchParams({file: serverFile});
+    if (downloadName) {
+      params.set('name', downloadName);
+    }
     if (window.__EMBED_MODE__) {
       const accessToken = await window.__EMBED_SESSION__;
       if (!accessToken) {
@@ -705,11 +710,12 @@ export default function App() {
     setHasPendingWorkbookDownload(false);
   };
 
-  const prepareDownloadArtifact = async (base64: string, filename: string) => {
+  const prepareDownloadArtifact = async (base64: string, filename: string, serverFile?: string | null) => {
     try {
-      const artifact: DownloadArtifact = filename
-        ? {filename, serverFile: filename}
-        : createObjectUrlDownloadArtifact(base64, filename);
+      const safeFilename = filename || 'updated_plan.xlsx';
+      const artifact: DownloadArtifact = serverFile
+        ? {filename: safeFilename, serverFile}
+        : createObjectUrlDownloadArtifact(base64, safeFilename);
       replaceDownloadArtifact(artifact);
       setHasPendingWorkbookDownload(true);
       addLog(
@@ -733,7 +739,7 @@ export default function App() {
     try {
       const resolvedArtifact =
         downloadArtifact.serverFile
-          ? {...downloadArtifact, url: await buildWorkbookDownloadUrl(downloadArtifact.serverFile)}
+          ? {...downloadArtifact, url: await buildWorkbookDownloadUrl(downloadArtifact.serverFile, downloadArtifact.filename)}
           : downloadArtifact;
 
       if (!resolvedArtifact.url) {
@@ -787,6 +793,7 @@ export default function App() {
 
       const data = await response.json();
       setSelectedFile(data.filename);
+      setSelectedFileKey(data.fileKey || data.filename);
       addLog(text(`Workbook uploaded: ${data.filename}`, `ブックをアップロードしました: ${data.filename}`), 'success', '⚙️');
       setStatus(text('Workbook ready', 'ブックの準備ができました'));
     } catch (error) {
@@ -1005,7 +1012,7 @@ export default function App() {
   }, [hasPendingWorkbookDownload]);
 
   useEffect(() => {
-    if (!selectedFile || view !== 'workflow-manager') return;
+    if (!selectedFileRef || view !== 'workflow-manager') return;
     const preservedProducts = products;
 
     const loadProducts = async () => {
@@ -1019,7 +1026,7 @@ export default function App() {
         const response = await apiFetch('/api/load-products', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({filePath: selectedFile, pageId: selectedCalendar?.id}),
+          body: JSON.stringify({filePath: selectedFileRef, pageId: selectedCalendar?.id}),
         });
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
@@ -1048,17 +1055,17 @@ export default function App() {
     };
 
     loadProducts();
-  }, [selectedFile, selectedCalendar?.id, view]);
+  }, [selectedFile, selectedFileRef, selectedCalendar?.id, view]);
 
   const refreshProductsFromServer = async (sourceProducts: Product[]) => {
-    if (!selectedFile) {
+    if (!selectedFileRef) {
       return false;
     }
 
     const refreshResponse = await apiFetch('/api/load-products', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({filePath: selectedFile, pageId: selectedCalendar?.id}),
+      body: JSON.stringify({filePath: selectedFileRef, pageId: selectedCalendar?.id}),
     });
 
     if (!refreshResponse.ok) {
@@ -1071,7 +1078,7 @@ export default function App() {
   };
 
   const handleSync = async () => {
-    if (!selectedCalendar || !selectedFile) return;
+    if (!selectedCalendar || !selectedFileRef) return;
 
     const currentProducts = products;
     setIsSyncing(true);
@@ -1083,7 +1090,7 @@ export default function App() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          file_path: selectedFile,
+          file_path: selectedFileRef,
           page_id: selectedCalendar.id,
           products: currentProducts,
         }),
@@ -1097,7 +1104,7 @@ export default function App() {
       if (data.error) throw new Error(data.error);
 
       if (data.buffer) {
-        await prepareDownloadArtifact(data.buffer, selectedFile || 'updated_plan.xlsx');
+        await prepareDownloadArtifact(data.buffer, selectedFile || 'updated_plan.xlsx', selectedFileRef);
       }
 
       setStatus(
@@ -1170,7 +1177,7 @@ export default function App() {
   };
 
   const handleDailyRun = async () => {
-    if (!dailyCalendar || !selectedFile) return;
+    if (!dailyCalendar || !selectedFileRef) return;
 
     setIsSyncing(true);
     setProgress(15);
@@ -1190,7 +1197,7 @@ export default function App() {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
-          file_path: selectedFile,
+          file_path: selectedFileRef,
           page_id: dailyCalendar.id,
         }),
       });
@@ -1206,7 +1213,7 @@ export default function App() {
       }
 
       if (data.buffer) {
-        await prepareDownloadArtifact(data.buffer, selectedFile || 'updated_plan.xlsx');
+        await prepareDownloadArtifact(data.buffer, selectedFile || 'updated_plan.xlsx', selectedFileRef);
       }
 
       const summary = (data.summary ?? null) as DailyRunSummary | null;
