@@ -11,7 +11,7 @@ import sys
 import zipfile
 import subprocess
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from datetime import date, datetime, timedelta
 
 import pandas as pd
@@ -565,6 +565,16 @@ CACHE_DIR = os.path.join(USER_BASE_DIR, "cache")
 PARTS_CACHE_FILE = os.path.join(CACHE_DIR, "parts_cache.json")
 NESTED_DB_CACHE_FILE = os.path.join(CACHE_DIR, "nested_db_cache.json")
 CACHE_TTL_SECONDS = 60 * 60 * 12
+DB_PAGE_CACHE_TTL_SECONDS = 60 * 5
+CALENDAR_CACHE_TTL_SECONDS = 60 * 2
+
+_RUNTIME_CACHE: Dict[str, Dict[str, dict]] = {
+    "parts_map": {},
+    "database_pages": {},
+    "calendar_pages": {},
+    "nested_db_ids": {},
+    "db_ct_is_number": {},
+}
 
 
 def _ensure_cache_dir():
@@ -574,6 +584,55 @@ def _ensure_cache_dir():
 
 def _is_cache_fresh(path: str, ttl_seconds: int) -> bool:
     return os.path.isfile(path) and (time.time() - os.path.getmtime(path) < ttl_seconds)
+
+
+def _get_runtime_cache(bucket: str, key: str, ttl_seconds: int):
+    store = _RUNTIME_CACHE.setdefault(bucket, {})
+    rec = store.get(key)
+    if not rec:
+        return None
+    try:
+        ts = float(rec.get("ts") or 0)
+    except Exception:
+        store.pop(key, None)
+        return None
+    if ttl_seconds > 0 and (time.time() - ts) >= ttl_seconds:
+        store.pop(key, None)
+        return None
+    return rec.get("value")
+
+
+def _set_runtime_cache(bucket: str, key: str, value):
+    _RUNTIME_CACHE.setdefault(bucket, {})[key] = {"value": value, "ts": time.time()}
+    return value
+
+
+def _make_kwargs_cache_key(kwargs: Dict[str, Any]) -> str:
+    if not kwargs:
+        return ""
+    try:
+        return json.dumps(kwargs, sort_keys=True, ensure_ascii=False, default=str)
+    except Exception:
+        items = sorted(kwargs.items(), key=lambda kv: kv[0])
+        return repr(items)
+
+
+def invalidate_database_page_cache(database_id: Optional[str] = None) -> None:
+    db_cache = _RUNTIME_CACHE.setdefault("database_pages", {})
+    cal_cache = _RUNTIME_CACHE.setdefault("calendar_pages", {})
+
+    if not database_id:
+        db_cache.clear()
+        cal_cache.clear()
+        return
+
+    prefix = f"{database_id}|"
+    for key in list(db_cache.keys()):
+        if key.startswith(prefix):
+            db_cache.pop(key, None)
+
+    if database_id == CALENDAR_DATABASE_ID:
+        cal_cache.clear()
 
 
 # =====================================================
@@ -1016,6 +1075,11 @@ def get_calendar_pages_next_n(n: int = 4, lookahead_days: int = 120) -> List[Tup
     if n <= 0:
         return []
 
+    cache_key = f"{n}:{int(lookahead_days)}"
+    cached = _get_runtime_cache("calendar_pages", cache_key, CALENDAR_CACHE_TTL_SECONDS)
+    if isinstance(cached, list):
+        return cached
+
     date_prop = _detect_calendar_date_prop_name()
 
     today = date.today()
@@ -1044,7 +1108,7 @@ def get_calendar_pages_next_n(n: int = 4, lookahead_days: int = 120) -> List[Tup
         if len(out) >= n:
             break
 
-    return out
+    return _set_runtime_cache("calendar_pages", cache_key, out)
 
 
 def get_calendar_pages_next4() -> List[Tuple[str, str, str]]:
@@ -1074,11 +1138,16 @@ def get_all_pages(database_id: str) -> List[dict]:
 
 def build_parts_map() -> Dict[str, str]:
     verify_notion_config()
+    cached = _get_runtime_cache("parts_map", PARTS_DATABASE_ID, CACHE_TTL_SECONDS)
+    if isinstance(cached, dict):
+        return cached
     _ensure_cache_dir()
     if _is_cache_fresh(PARTS_CACHE_FILE, CACHE_TTL_SECONDS):
         try:
             with open(PARTS_CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f).get("parts_map", {})
+                parts_map = json.load(f).get("parts_map", {})
+                if isinstance(parts_map, dict):
+                    return _set_runtime_cache("parts_map", PARTS_DATABASE_ID, parts_map)
         except Exception:
             pass
     pages = get_all_pages(PARTS_DATABASE_ID)
@@ -1091,7 +1160,7 @@ def build_parts_map() -> Dict[str, str]:
                 parts_map[name] = p["id"]
     with open(PARTS_CACHE_FILE, "w", encoding="utf-8") as f:
         json.dump({"parts_map": parts_map}, f, ensure_ascii=False, indent=2)
-    return parts_map
+    return _set_runtime_cache("parts_map", PARTS_DATABASE_ID, parts_map)
 
 
 def get_all_blocks(block_id: str) -> List[dict]:
@@ -1108,24 +1177,33 @@ def get_all_blocks(block_id: str) -> List[dict]:
 
 def _cache_nested_db_id(page_id: str, db_title: str, db_id: str):
     _ensure_cache_dir()
+    cache_key = f"{page_id}:{db_title}"
     data = {}
     if os.path.isfile(NESTED_DB_CACHE_FILE):
         try:
             data = json.load(open(NESTED_DB_CACHE_FILE, "r", encoding="utf-8"))
         except Exception:
             data = {}
-    data[f"{page_id}:{db_title}"] = {"db_id": db_id, "ts": time.time()}
+    data[cache_key] = {"db_id": db_id, "ts": time.time()}
     json.dump(data, open(NESTED_DB_CACHE_FILE, "w", encoding="utf-8"), ensure_ascii=False, indent=2)
+    _set_runtime_cache("nested_db_ids", cache_key, db_id)
 
 
 def _load_cached_nested_db_id(page_id: str, db_title: str):
+    cache_key = f"{page_id}:{db_title}"
+    runtime_cached = _get_runtime_cache("nested_db_ids", cache_key, CACHE_TTL_SECONDS)
+    if isinstance(runtime_cached, str) and runtime_cached:
+        return runtime_cached
     if not os.path.isfile(NESTED_DB_CACHE_FILE):
         return None
     try:
         data = json.load(open(NESTED_DB_CACHE_FILE, "r", encoding="utf-8"))
-        rec = data.get(f"{page_id}:{db_title}")
+        rec = data.get(cache_key)
         if rec and (time.time() - rec["ts"] < CACHE_TTL_SECONDS):
-            return rec["db_id"]
+            db_id = rec.get("db_id")
+            if db_id:
+                _set_runtime_cache("nested_db_ids", cache_key, db_id)
+                return db_id
     except Exception:
         return None
     return None
@@ -1151,8 +1229,11 @@ def find_nested_databases(page_id: str, target="作業内容") -> List[str]:
 
 def retrieve_db_ct_is_number(database_id: str) -> bool:
     """Return True if 'c/t 秒' in the database schema is a number; otherwise False."""
+    cached = _get_runtime_cache("db_ct_is_number", database_id, CACHE_TTL_SECONDS)
+    if cached is not None:
+        return bool(cached)
     try:
-        db = notion.databases.retrieve(database_id=db_id)
+        db = _with_backoff(notion.databases.retrieve, database_id=database_id)
         props = db.get("properties", {}) or {}
         p = props.get("c/t 秒")
         if not p:
@@ -1163,8 +1244,8 @@ def retrieve_db_ct_is_number(database_id: str) -> bool:
                     break
         if not p:
             # Default to number (safer for most of your DBs)
-            return True
-        return (p.get("type") == "number")
+            return _set_runtime_cache("db_ct_is_number", database_id, True)
+        return _set_runtime_cache("db_ct_is_number", database_id, (p.get("type") == "number"))
     except Exception:
          # If we cannot read schema (network/auth), assume number to avoid rich_text->number crash
         return True
@@ -1509,8 +1590,9 @@ def remove_parts_line_at_index(parts_rt: List[dict], index: int) -> List[dict]:
     return lines_to_rich_text(lines)
 
 
-def scan_child_db_cache(nested_db_id: str) -> Dict[str, dict]:
-    ct_is_number = retrieve_db_ct_is_number(nested_db_id)
+def scan_child_db_cache(nested_db_id: str, ct_is_number: Optional[bool] = None) -> Dict[str, dict]:
+    if ct_is_number is None:
+        ct_is_number = retrieve_db_ct_is_number(nested_db_id)
     cache: Dict[str, dict] = {}
     rows = get_all_pages(nested_db_id)
     for r in rows:
@@ -1523,6 +1605,41 @@ def scan_child_db_cache(nested_db_id: str) -> Dict[str, dict]:
         ct_val = read_ct_prop_from_page_props(props, ct_is_number)
         cache[color] = {"page": r, "parts": parts_entries, "qty_lines": [], "ct": ct_val}
     return cache
+
+
+def warm_notion_runtime_cache(
+    *,
+    page_id: Optional[str] = None,
+    nested_db_title: str = "作業内容",
+    include_parts: bool = False,
+    include_calendar: bool = False,
+    include_nested_rows: bool = False,
+) -> Dict[str, Any]:
+    warmed: Dict[str, Any] = {}
+
+    if include_calendar:
+        warmed["calendar_pages"] = get_calendar_pages_next4()
+
+    if include_parts:
+        warmed["parts_map"] = build_parts_map()
+
+    if not page_id:
+        return warmed
+
+    nested_ids = find_nested_databases(page_id, nested_db_title)
+    warmed["nested_db_ids"] = nested_ids
+    if not nested_ids:
+        return warmed
+
+    nested_db_id = nested_ids[0]
+    warmed["nested_db_id"] = nested_db_id
+    ct_is_number = retrieve_db_ct_is_number(nested_db_id)
+    warmed["ct_is_number"] = ct_is_number
+
+    if include_nested_rows:
+        warmed["nested_db_cache"] = scan_child_db_cache(nested_db_id, ct_is_number=ct_is_number)
+
+    return warmed
 
 
 # =====================================================
@@ -2167,6 +2284,7 @@ def create_row_in_nested_db_auto(
 
     try:
         new_page = _create_with_ct(ct_prop)
+        invalidate_database_page_cache(nested_db_id)
         return new_page
 
     except APIResponseError as e:
@@ -2177,18 +2295,27 @@ def create_row_in_nested_db_auto(
         if ("c/t" in low or "c/t 秒" in msg) and ("expected to be number" in low or "is expected to be number" in low):
             log("[Notion] CT type mismatch; retrying with Number payload for 'c/t 秒'.")
             new_page = _create_with_ct({"number": ct_val_int})
+            invalidate_database_page_cache(nested_db_id)
             return new_page
 
         # If Notion expects rich_text, force rich_text payload and retry once.
         if ("c/t" in low or "c/t 秒" in msg) and ("expected to be rich_text" in low or "is expected to be rich_text" in low):
             log("[Notion] CT type mismatch; retrying with rich_text payload for 'c/t 秒'.")
             new_page = _create_with_ct({"rich_text": [{"type": "text", "text": {"content": str(ct_val_int)}}]})
+            invalidate_database_page_cache(nested_db_id)
             return new_page
 
         raise
 
 def get_all_pages(database_id: str, **kwargs) -> List[dict]:
     """Fetch all pages from a Notion database (with pagination)."""
+    use_cache = bool(kwargs.pop("_use_cache", True))
+    cache_key = f"{database_id}|{_make_kwargs_cache_key(kwargs)}"
+    if use_cache:
+        cached = _get_runtime_cache("database_pages", cache_key, DB_PAGE_CACHE_TTL_SECONDS)
+        if isinstance(cached, list):
+            return cached
+
     results = []
     start_cursor = None
     while True:
@@ -2197,4 +2324,6 @@ def get_all_pages(database_id: str, **kwargs) -> List[dict]:
         if not resp.get("has_more"):
             break
         start_cursor = resp.get("next_cursor")
+    if use_cache:
+        return _set_runtime_cache("database_pages", cache_key, results)
     return results

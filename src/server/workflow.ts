@@ -1,7 +1,35 @@
 import ExcelJS from 'exceljs';
+import fs from 'fs/promises';
 import * as logic from './logic.js';
 import * as notion from './notion.js';
 import * as notionUtils from './notionUtils.js';
+
+const NOTION_PAGE_ICON = { type: 'emoji', emoji: '⚙️' };
+
+type WorkflowProduct = {
+  id: string;
+  selected: boolean;
+  colorAccent: boolean;
+  override: boolean;
+  trial: string;
+  part: string;
+  color: string;
+  qty: string;
+  ct: number;
+  date: string;
+  sourceRows?: number[];
+  alreadySynced?: boolean;
+};
+
+type ExistingColorPage = {
+  id: string;
+  properties: Record<string, any>;
+};
+
+type ProductLineMatch = {
+  targetIndex: number | null;
+  partPageId: string | null;
+};
 
 function isRowHighlighted(row: ExcelJS.Row): boolean {
   for (let i = 1; i <= 40; i++) {
@@ -17,7 +45,117 @@ function isRowHighlighted(row: ExcelJS.Row): boolean {
   return false;
 }
 
-export async function loadProductsFromExcel(filePath: string) {
+function getProductPartVariants(part: string, color: string): string[] {
+  const variants = [logic.cleanStr(part)];
+  const normalizedColor = logic.normalizeColorKey(color);
+  if (variants[0] && normalizedColor) {
+    variants.push(`${variants[0]}(${normalizedColor})`);
+  }
+  return Array.from(new Set(variants.filter(Boolean)));
+}
+
+function resolvePartPageId(partVariants: string[], partsMapLocal: Record<string, string>): string | null {
+  let bestKey: string | null = null;
+  let bestLen = -1;
+
+  for (const variant of partVariants) {
+    for (const key of Object.keys(partsMapLocal)) {
+      if (!variant.startsWith(key)) continue;
+      if (key.length > bestLen) {
+        bestKey = key;
+        bestLen = key.length;
+      }
+    }
+  }
+
+  return bestKey ? partsMapLocal[bestKey] : null;
+}
+
+function locateProductInPartsRichText(
+  partsRt: any[],
+  partsMapLocal: Record<string, string>,
+  product: Pick<WorkflowProduct, 'part' | 'color' | 'date'>,
+): ProductLineMatch {
+  const partVariants = getProductPartVariants(product.part, product.color);
+  const partPageId = resolvePartPageId(partVariants, partsMapLocal);
+  const normalizedDate = logic.cleanStr(product.date);
+
+  for (const variant of partVariants) {
+    const targetIndex = notionUtils.findPartLineIndex(partsRt, partPageId, variant, normalizedDate, false);
+    if (targetIndex !== null) {
+      return { targetIndex, partPageId };
+    }
+
+    if (normalizedDate) {
+      const fallbackIndex = notionUtils.findPartLineIndex(partsRt, partPageId, variant, '', false);
+      if (fallbackIndex !== null) {
+        return { targetIndex: fallbackIndex, partPageId };
+      }
+    }
+  }
+
+  if (partPageId) {
+    const targetIndex = notionUtils.findPartLineIndex(partsRt, partPageId, '', normalizedDate, false);
+    if (targetIndex !== null) {
+      return { targetIndex, partPageId };
+    }
+  }
+
+  return { targetIndex: null, partPageId };
+}
+
+function buildExistingColorPageIndex(existingPages: any[]): Record<string, ExistingColorPage> {
+  const existingByColor: Record<string, ExistingColorPage> = {};
+
+  for (const page of existingPages) {
+    const props = (page as any).properties || {};
+    const titleArr = props['色']?.title;
+    if (!titleArr?.length) continue;
+    const colorKey = logic.normalizeColorKey(titleArr[0].plain_text?.trim() || '');
+    if (!colorKey) continue;
+    existingByColor[colorKey] = page as ExistingColorPage;
+  }
+
+  return existingByColor;
+}
+
+async function annotateProductsWithNotionState(products: WorkflowProduct[], pageId?: string): Promise<WorkflowProduct[]> {
+  const baseProducts = products.map((product) => ({ ...product, alreadySynced: false }));
+  if (!pageId || baseProducts.length === 0) {
+    return baseProducts;
+  }
+
+  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
+  const partsMapPromise = notion.buildPartsMap();
+  const nestedDbs = await nestedDbsPromise;
+  if (nestedDbs.length === 0) {
+    return baseProducts;
+  }
+
+  const [existingPages, partsMapLocal] = await Promise.all([
+    notion.getAllPages(nestedDbs[0]),
+    partsMapPromise,
+  ]);
+  const existingByColor = buildExistingColorPageIndex(existingPages);
+
+  return baseProducts.map((product) => {
+    const colorKey = logic.normalizeColorKey(product.color);
+    const page = existingByColor[colorKey];
+    if (!page) {
+      return product;
+    }
+
+    const partsRt = page.properties?.['品番']?.rich_text || [];
+    const { targetIndex } = locateProductInPartsRichText(partsRt, partsMapLocal, product);
+
+    return {
+      ...product,
+      alreadySynced: targetIndex !== null,
+    };
+  });
+}
+
+export async function loadProductsFromExcel(filePath: string, pageId?: string) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(filePath);
   const ws = wb.worksheets[0]; // Assuming first sheet
@@ -38,7 +176,7 @@ export async function loadProductsFromExcel(filePath: string) {
     if (!part) return;
     
     const fullName = headers['子品番の正式名称'] ? (row.getCell(headers['子品番の正式名称']).text || '').trim() : '';
-    const trial = headers['試作番号'] ? (row.getCell(headers['試作番号']).text || '').trim() : '';
+    const trial = logic.cleanStr(headers['試作番号'] ? (row.getCell(headers['試作番号']).text || '').trim() : '');
     const qty = headers['完成品数'] ? (row.getCell(headers['完成品数']).text || '').trim() : '';
     
     let dStr = '';
@@ -67,7 +205,8 @@ export async function loadProductsFromExcel(filePath: string) {
         qty,
         ct: ctVal,
         date: dStr,
-        isYellow
+        isYellow,
+        rowNumber
       });
     }
   });
@@ -79,7 +218,7 @@ export async function loadProductsFromExcel(filePath: string) {
     grouped[key].push(e);
   }
 
-  const out = [];
+  const out: WorkflowProduct[] = [];
   let idCounter = 0;
   for (const key in grouped) {
     const items = grouped[key];
@@ -97,7 +236,8 @@ export async function loadProductsFromExcel(filePath: string) {
           color: i.color,
           qty: logic.cleanStr(i.qty),
           ct: i.ct,
-          date: i.date
+          date: i.date,
+          sourceRows: [i.rowNumber]
         });
       }
     } else {
@@ -106,6 +246,7 @@ export async function loadProductsFromExcel(filePath: string) {
       const qty0 = items.find(i => logic.cleanStr(i.qty))?.qty || '';
       const ctSum = items.reduce((sum, i) => sum + i.ct, 0);
       const wasYellowAny = items.some(i => i.isYellow);
+      const sourceRows = Array.from(new Set(items.map((i) => i.rowNumber)));
       
       out.push({
         id: `group-${idCounter++}`,
@@ -117,23 +258,35 @@ export async function loadProductsFromExcel(filePath: string) {
         color: i0.color,
         qty: qty0,
         ct: ctSum,
-        date: date0
+        date: date0,
+        sourceRows
       });
     }
   }
 
-  return out;
+  return annotateProductsWithNotionState(out, pageId);
 }
 
 export async function highlightAndSync(filePath: string, pageId: string, products: any[]) {
-  const nestedDbs = await notion.findNestedDatabases(pageId, '作業内容');
+  const selectedProducts = products.filter((product) => product.selected);
+
+  const wb = new ExcelJS.Workbook();
+  const workbookReadPromise = wb.xlsx.readFile(filePath);
+  if (selectedProducts.length === 0) {
+    await workbookReadPromise;
+    const buffer = await wb.xlsx.writeBuffer();
+    return { success: true, buffer: Buffer.from(buffer).toString('base64') };
+  }
+
+  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
+  const partsMapPromise = notion.buildPartsMap();
+  await workbookReadPromise;
+
+  const nestedDbs = await nestedDbsPromise;
   if (nestedDbs.length === 0) {
     throw new Error("No nested '作業内容' database found in selected calendar page.");
   }
   const nestedId = nestedDbs[0];
-
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.readFile(filePath);
   const ws = wb.worksheets[0];
   
   const headers: Record<string, number> = {};
@@ -142,7 +295,12 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     headers[cell.text.trim()] = colNumber;
   });
 
-  const excelIndex: Record<string, { rows: ExcelJS.Row[], wasHighlighted: boolean, ctTotal: number }> = {};
+  type ExcelRowRecord = {
+    row: ExcelJS.Row;
+    rowNumber: number;
+    wasHighlighted: boolean;
+  };
+  const excelIndex: Record<string, { rows: ExcelRowRecord[]; wasHighlighted: boolean; ctTotal: number }> = {};
 
   ws.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
@@ -150,6 +308,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     const part = headers['品目名称'] ? (row.getCell(headers['品目名称']).text || '').trim() : '';
     if (!part) return;
 
+    const trial = headers['試作番号'] ? (row.getCell(headers['試作番号']).text || '').trim() : '';
     const fullName = headers['子品番の正式名称'] ? (row.getCell(headers['子品番の正式名称']).text || '').trim() : '';
     let derivedColor = '';
     if (!rawColor && fullName) {
@@ -169,15 +328,20 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     }
     
     const partKey = logic.normalizePartKey(part);
+    const rowRecord: ExcelRowRecord = {
+      row,
+      rowNumber,
+      wasHighlighted: rowIsYellow,
+    };
     
     for (const c of colorsToProcess) {
       const colorKey = logic.normalizeColorKey(c);
-      const key = `${colorKey}|${partKey}`;
+      const key = `${colorKey}|${partKey}|${trial}`;
       
       if (!excelIndex[key]) {
         excelIndex[key] = { rows: [], wasHighlighted: false, ctTotal: 0 };
       }
-      excelIndex[key].rows.push(row);
+      excelIndex[key].rows.push(rowRecord);
       
       const isMixed = rawColor.includes('・') || derivedColor.includes('・');
       if (isMixed) {
@@ -195,45 +359,37 @@ export async function highlightAndSync(filePath: string, pageId: string, product
 
   const actions: any[] = [];
   
-  for (const uiProd of products) {
+  for (const uiProd of selectedProducts) {
     const effectivePart = uiProd.colorAccent ? `${uiProd.part}(${uiProd.color})` : uiProd.part;
     const colorKey = logic.normalizeColorKey(uiProd.color);
-    const key = `${colorKey}|${logic.normalizePartKey(uiProd.part)}`;
+    const key = `${colorKey}|${logic.normalizePartKey(uiProd.part)}|${logic.cleanStr(uiProd.trial)}`;
     const rec = excelIndex[key];
-    
-    const wasPre = rec ? rec.wasHighlighted : false;
-    let excelCt = rec ? rec.ctTotal : 0;
+    const sourceRows = Array.isArray(uiProd.sourceRows) && uiProd.sourceRows.length > 0 ? new Set(uiProd.sourceRows) : null;
+    const rowsToTouch = rec
+      ? sourceRows
+        ? rec.rows.filter((entry) => sourceRows.has(entry.rowNumber))
+        : rec.rows
+      : [];
     const isOverride = uiProd.override;
     const chosenCt = logic.ceilNumber(uiProd.ct);
     
-    if (uiProd.selected) {
-      if (isOverride) {
-        actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date, override: true });
-      } else {
-        if (wasPre) continue;
-        if (rec && !rec.wasHighlighted) {
-          rec.rows.forEach(r => {
-            for (let i = 1; i <= 10; i++) {
-              const cell = r.getCell(i);
-              cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
-            }
-          });
-          rec.wasHighlighted = true;
-        }
-        actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date });
-      }
-    } else {
-      if (rec && rec.wasHighlighted) {
-        rec.rows.forEach(r => {
-          for (let i = 1; i <= 10; i++) {
-            const cell = r.getCell(i);
-            cell.fill = { type: 'pattern', pattern: 'none' };
-          }
-        });
-        rec.wasHighlighted = false;
-        actions.push({ op: 'remove', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date });
-      }
+    if (isOverride) {
+      actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date, override: true });
+      continue;
     }
+
+    if (rowsToTouch.length > 0) {
+      rowsToTouch.forEach((entry) => {
+        if (entry.wasHighlighted) return;
+        for (let i = 1; i <= 10; i++) {
+          const cell = entry.row.getCell(i);
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+        }
+        entry.wasHighlighted = true;
+      });
+    }
+
+    actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date });
   }
 
   // Group actions by color and process
@@ -243,17 +399,12 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     actionsByColor[a.color].push(a);
   }
 
-  const existingPages = await notion.getAllPages(nestedId);
-  const existingByColor: Record<string, any> = {};
-  for (const p of existingPages) {
-    const props = (p as any).properties;
-    const titleArr = props['色']?.title;
-    if (titleArr && titleArr.length > 0) {
-      existingByColor[titleArr[0].plain_text.trim()] = p;
-    }
-  }
-  
-  const partsMapLocal = await notion.buildPartsMap();
+  const [existingPages, partsMapLocal] = await Promise.all([
+    notion.getAllPages(nestedId),
+    partsMapPromise,
+  ]);
+  const existingByColor = buildExistingColorPageIndex(existingPages);
+  let mutatedNestedDb = false;
 
   for (const colorKey in actionsByColor) {
     const acts = actionsByColor[colorKey];
@@ -267,8 +418,9 @@ export async function highlightAndSync(filePath: string, pageId: string, product
         '品番': { rich_text: [] },
         '数量': { rich_text: [] },
         'c/t 秒': { number: 0 }
-      });
+      }, NOTION_PAGE_ICON);
       existingByColor[colorKey] = page;
+      mutatedNestedDb = true;
     }
     
     if (!page) continue;
@@ -278,7 +430,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     let qtyRt = props['数量']?.rich_text || [];
     let currentCt = props['c/t 秒']?.number || 0;
     
-    let currentEntries = notionUtils.parsePartsLines(partsRt);
+    const originalEntries = notionUtils.parsePartsLines(partsRt);
     
     for (const act of acts) {
       const fullText = act.part;
@@ -294,7 +446,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
       const partPageId = bestKey ? partsMapLocal[bestKey] : partsMapLocal[act.part];
       
       if (act.op === 'add') {
-        const already = currentEntries.some(e => {
+        const already = originalEntries.some(e => {
           const matchId = partPageId && e.mention_id === partPageId;
           const matchTxt = !partPageId && act.part && e.part_text?.includes(act.part);
           return (matchId || matchTxt) && e.date === act.date;
@@ -333,8 +485,6 @@ export async function highlightAndSync(filePath: string, pageId: string, product
         partsRt = notionUtils.trimPartsTrailingNewline([...partsRt, ...lineBlocks]);
         qtyRt = notionUtils.appendQtyGreenItalic(qtyRt, act.qty);
         currentCt += act.ct;
-        currentEntries = notionUtils.parsePartsLines(partsRt);
-        
       } else {
         let targetIdx = notionUtils.findPartLineIndex(partsRt, partPageId || null, fullText, act.date, false);
         if (targetIdx === null) {
@@ -345,24 +495,76 @@ export async function highlightAndSync(filePath: string, pageId: string, product
           partsRt = notionUtils.removePartsLineAtIndex(partsRt, targetIdx);
           qtyRt = notionUtils.removeQtyAtIndexIfGreenItalicWithValue(qtyRt, targetIdx, act.qty);
           currentCt = Math.max(0, currentCt - act.ct);
-          currentEntries = notionUtils.parsePartsLines(partsRt);
         }
       }
     }
     
     if (notionUtils.richTextIsEffectivelyEmpty(partsRt) && notionUtils.richTextIsEffectivelyEmpty(qtyRt) && currentCt === 0) {
-      await notion.updatePageProperties(page.id, { archived: true });
+      await notion.archivePage(page.id);
+      mutatedNestedDb = true;
     } else {
       await notion.updatePageProperties(page.id, {
         '品番': { rich_text: partsRt },
         '数量': { rich_text: qtyRt },
         'c/t 秒': { number: currentCt }
       });
+      mutatedNestedDb = true;
     }
   }
 
-  await wb.xlsx.writeFile(filePath);
-  const buffer = await wb.xlsx.writeBuffer();
-  return { success: true, buffer: Buffer.from(buffer).toString('base64') };
+  if (mutatedNestedDb) {
+    notion.invalidateDatabasePagesCache(nestedId);
+  }
+
+  const workbookBuffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
+  await fs.writeFile(filePath, workbookBuffer);
+  return { success: true, buffer: workbookBuffer.toString('base64') };
 }
 
+export async function removeProductFromNotion(pageId: string, product: WorkflowProduct) {
+  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
+  const partsMapPromise = notion.buildPartsMap();
+  const nestedDbs = await nestedDbsPromise;
+  if (nestedDbs.length === 0) {
+    throw new Error("No nested '作業内容' database found in selected calendar page.");
+  }
+
+  const nestedId = nestedDbs[0];
+  const existingPages = await notion.getAllPages(nestedId);
+  const existingByColor = buildExistingColorPageIndex(existingPages);
+  const colorKey = logic.normalizeColorKey(product.color);
+  const page = existingByColor[colorKey];
+
+  if (!page) {
+    return { removed: false };
+  }
+
+  const props = page.properties || {};
+  let partsRt = props['品番']?.rich_text || [];
+  let qtyRt = props['数量']?.rich_text || [];
+  let currentCt = Number(props['c/t 秒']?.number || 0);
+  const partsMapLocal = await partsMapPromise;
+  const { targetIndex } = locateProductInPartsRichText(partsRt, partsMapLocal, product);
+
+  if (targetIndex === null) {
+    return { removed: false };
+  }
+
+  partsRt = notionUtils.removePartsLineAtIndex(partsRt, targetIndex);
+  qtyRt = notionUtils.removeQtyAtIndexIfGreenItalicWithValue(qtyRt, targetIndex, logic.cleanStr(product.qty));
+  currentCt = Math.max(0, currentCt - logic.ceilNumber(product.ct));
+
+  if (notionUtils.richTextIsEffectivelyEmpty(partsRt) && notionUtils.richTextIsEffectivelyEmpty(qtyRt) && currentCt === 0) {
+    await notion.archivePage(page.id);
+  } else {
+    await notion.updatePageProperties(page.id, {
+      '品番': { rich_text: partsRt },
+      '数量': { rich_text: qtyRt },
+      'c/t 秒': { number: currentCt }
+    });
+  }
+
+  notion.invalidateDatabasePagesCache(nestedId);
+
+  return { removed: true };
+}

@@ -232,6 +232,11 @@ def run_daily_auto_for_page(selected_page: dict, target_date: date):
 
     log(f"[Daily] Using Excel file: {filepath}")
 
+    warmed = logic.warm_notion_runtime_cache(
+        page_id=selected_page["id"],
+        include_parts=True,
+    )
+
     # 2) Preprocess Excel to split rows like 'N93・3F黒'
     try:
         preprocess_excel_split_n93_3f(filepath)
@@ -277,14 +282,14 @@ def run_daily_auto_for_page(selected_page: dict, target_date: date):
 
     # 5) Group rows by color / parts using existing logic
     groups = group_data_daily(df_to_group)
-    parts_map = build_parts_map()
+    parts_map = warmed.get("parts_map") if isinstance(warmed.get("parts_map"), dict) else build_parts_map()
 
     # 6) Find nested『作業内容』DB inside the selected calendar page
-    nested = find_nested_databases(selected_page["id"], "作業内容")
+    nested = warmed["nested_db_ids"] if "nested_db_ids" in warmed else find_nested_databases(selected_page["id"], "作業内容")
     if not nested:
         messagebox.showerror("Daily", "『作業内容』DBがページ内にありません。")
         return
-    nested_id = nested[0]
+    nested_id = warmed.get("nested_db_id") or nested[0]
 
     yellow = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
 

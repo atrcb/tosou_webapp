@@ -376,8 +376,14 @@ def highlight_and_sync():
         messagebox.showwarning("Warning", "カレンダーページを先に選択してください。")
         return
 
+    warmed = logic.warm_notion_runtime_cache(
+        page_id=selected_page_id,
+        include_parts=True,
+        include_nested_rows=True,
+    )
+
     # ✅ Validate Notion child DB FIRST (before Excel save)
-    nested = find_nested_databases(selected_page_id, "作業内容")
+    nested = warmed["nested_db_ids"] if "nested_db_ids" in warmed else find_nested_databases(selected_page_id, "作業内容")
     if not nested:
         set_status("作業内容データベースが見つかりません", THEMES[CURRENT_THEME]["status_warn"])
         dbs = _debug_list_child_databases(selected_page_id)
@@ -394,8 +400,9 @@ def highlight_and_sync():
         )
         return
 
-    nested_id = nested[0]
-    ct_is_number = retrieve_db_ct_is_number(nested_id)
+    nested_id = warmed.get("nested_db_id") or nested[0]
+    ct_is_number = bool(warmed.get("ct_is_number")) if "ct_is_number" in warmed else retrieve_db_ct_is_number(nested_id)
+    parts_map_local = warmed.get("parts_map") if isinstance(warmed.get("parts_map"), dict) else build_parts_map()
 
     # 1) Preprocess N93・3F黒 rows
     try:
@@ -525,7 +532,8 @@ def highlight_and_sync():
         if not messagebox.askokcancel("上書き確認", msg):
             return
 
-    db_cache = scan_child_db_cache(nested_id)
+    warmed_db_cache = warmed.get("nested_db_cache")
+    db_cache = warmed_db_cache if isinstance(warmed_db_cache, dict) else scan_child_db_cache(nested_id, ct_is_number=ct_is_number)
     existing_by_color = {c: info["page"] for c, info in db_cache.items()}
 
     actions: List[dict] = []
@@ -569,6 +577,7 @@ def highlight_and_sync():
         actions_by_color[act["color"].strip()].append(act)
 
     # ✅ Notion sync first (with backoff). If it fails: stop and DON'T save Excel.
+    nested_db_mutated = False
     for color_key, acts in actions_by_color.items():
         has_add = any(a["op"] == "add" for a in acts)
         page = existing_by_color.get(color_key)
@@ -588,6 +597,7 @@ def highlight_and_sync():
             )
             existing_by_color[color_key] = page
             db_cache[color_key] = {"page": page, "parts": [], "qty_lines": [], "ct": 0}
+            nested_db_mutated = True
 
         if page is None:
             continue
@@ -598,7 +608,6 @@ def highlight_and_sync():
 
         current_ct = int(db_cache.get(color_key, {}).get("ct") or read_ct_prop_from_page_props(props, ct_is_number) or 0)
         current_entries = parse_parts_lines(parts_rt)
-        parts_map_local = build_parts_map()
 
         for act in acts:
             op = act["op"]
@@ -659,6 +668,7 @@ def highlight_and_sync():
 
         if rich_text_is_effectively_empty(parts_rt) and rich_text_is_effectively_empty(qty_rt) and current_ct == 0:
             logic._with_backoff(notion.pages.update, page_id=page["id"], archived=True)
+            nested_db_mutated = True
         else:
             logic._with_backoff(
                 notion.pages.update,
@@ -669,6 +679,10 @@ def highlight_and_sync():
                     "c/t 秒": build_ct_prop(int(current_ct), ct_is_number),
                 },
             )
+            nested_db_mutated = True
+
+    if nested_db_mutated:
+        logic.invalidate_database_page_cache(nested_id)
 
     # ✅ Now save Excel AFTER Notion succeeded
     fd, tmp = tempfile.mkstemp(suffix=".xlsx")

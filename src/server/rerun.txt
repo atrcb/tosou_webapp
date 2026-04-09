@@ -1,0 +1,7 @@
+git add server.ts src/server/App.tsx src/server/index.css
+git commit -m "Rework of the product screen list v2"
+git push origin main
+
+
+set -a && source .env && set +a && curl -s https://embed.atrcb-api.org/api/embed-link   -H "Content-Type: application/json"   -H "x-embed-admin-token: 07031123728"   -d '{"sub":"notion-main-embed","path":"/embed-app/","ttlSeconds":0}'
+
