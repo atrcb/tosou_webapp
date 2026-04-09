@@ -145,6 +145,16 @@ const nowSeconds = () => Math.floor(Date.now() / 1000);
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
 
+const readQueryStringValue = (value: unknown): string => {
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+  if (Array.isArray(value) && typeof value[0] === 'string') {
+    return value[0].trim();
+  }
+  return '';
+};
+
 const isLoopbackHostname = (hostname: string): boolean => {
   const normalized = hostname.trim().toLowerCase();
   return LOOPBACK_HOSTS.has(normalized);
@@ -267,7 +277,9 @@ const requireEmbedScope =
         return res.status(500).json({ error: 'Embed session secret is not configured' });
       }
       const authHeader = req.get('authorization') || '';
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : readQueryStringValue(req.query?.access_token);
       if (!token) {
         return res.status(401).json({ error: 'Missing bearer token' });
       }
@@ -499,6 +511,24 @@ const handleCalendar = async (res: express.Response) => {
 const handleInitializeCaches = async (res: express.Response) => {
   const summary = await warmStartupCachesSafely();
   res.json(summary);
+};
+
+const handleDownloadWorkbook = async (fileParam: unknown, res: express.Response) => {
+  const requested = readQueryStringValue(fileParam);
+  if (!requested) {
+    return res.status(400).json({ error: 'file is required' });
+  }
+
+  const filename = path.basename(requested);
+  const fullPath = path.join(UPLOAD_DIR, filename);
+  try {
+    await fs.promises.access(fullPath, fs.constants.R_OK);
+  } catch {
+    return res.status(404).json({ error: 'Workbook not found' });
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  return res.download(fullPath, filename);
 };
 
 const handleLoadProducts = async (body: any, res: express.Response) => {
@@ -3885,6 +3915,14 @@ app.post('/api/initialize', async (req, res) => {
   }
 });
 
+app.get('/api/download', async (req, res) => {
+  try {
+    await handleDownloadWorkbook(req.query?.file, res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get(
   '/embed-api/me',
   applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
@@ -3918,6 +3956,19 @@ app.post(
   async (req, res) => {
   try {
     await handleInitializeCaches(res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+);
+
+app.get(
+  '/embed-api/download',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:read'),
+  async (req, res) => {
+  try {
+    await handleDownloadWorkbook(req.query?.file, res);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

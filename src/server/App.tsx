@@ -49,7 +49,9 @@ type WorkflowStep = {
 };
 type DownloadArtifact = {
   filename: string;
-  url: string;
+  url?: string;
+  revokeUrl?: boolean;
+  serverFile?: string;
 };
 type DailyRunSummary = {
   colorsCreated: string[];
@@ -196,7 +198,7 @@ const idbDel = async (key: string): Promise<void> => {
   }
 };
 
-const createDownloadArtifact = (base64: string, filename: string): DownloadArtifact => {
+const createObjectUrlDownloadArtifact = (base64: string, filename: string): DownloadArtifact => {
   const binaryStr = atob(base64);
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) {
@@ -210,14 +212,30 @@ const createDownloadArtifact = (base64: string, filename: string): DownloadArtif
   return {
     filename,
     url: URL.createObjectURL(blob),
+    revokeUrl: true,
   };
 };
 
 const triggerDownload = ({filename, url}: DownloadArtifact) => {
+  if (!url) {
+    return;
+  }
+
+  const prefersNewWindow = isEmbeddedMode();
+  if (prefersNewWindow) {
+    const popup = window.open(url, '_blank', 'noopener,noreferrer');
+    if (popup) {
+      return;
+    }
+  }
+
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
   anchor.rel = 'noreferrer';
+  if (prefersNewWindow) {
+    anchor.target = '_blank';
+  }
   document.body.appendChild(anchor);
   anchor.click();
   document.body.removeChild(anchor);
@@ -659,9 +677,23 @@ export default function App() {
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const handleLanguageChange = (nextLanguage: Language) => setLanguage(nextLanguage);
 
+  const buildWorkbookDownloadUrl = async (filename: string) => {
+    const params = new URLSearchParams({file: filename});
+    if (window.__EMBED_MODE__) {
+      const accessToken = await window.__EMBED_SESSION__;
+      if (!accessToken) {
+        throw new Error('Embed session is unavailable.');
+      }
+      params.set('access_token', accessToken);
+      return `/embed-api/download?${params.toString()}`;
+    }
+
+    return `/api/download?${params.toString()}`;
+  };
+
   const replaceDownloadArtifact = (nextArtifact: DownloadArtifact | null) => {
     setDownloadArtifact((currentArtifact) => {
-      if (currentArtifact) {
+      if (currentArtifact?.revokeUrl && currentArtifact.url) {
         URL.revokeObjectURL(currentArtifact.url);
       }
       return nextArtifact;
@@ -673,9 +705,11 @@ export default function App() {
     setHasPendingWorkbookDownload(false);
   };
 
-  const downloadBuffer = (base64: string, filename: string) => {
+  const prepareDownloadArtifact = async (base64: string, filename: string) => {
     try {
-      const artifact = createDownloadArtifact(base64, filename);
+      const artifact: DownloadArtifact = filename
+        ? {filename, serverFile: filename}
+        : createObjectUrlDownloadArtifact(base64, filename);
       replaceDownloadArtifact(artifact);
       setHasPendingWorkbookDownload(true);
       addLog(
@@ -691,15 +725,32 @@ export default function App() {
     }
   };
 
-  const handleDownloadWorkbook = () => {
+  const handleDownloadWorkbook = async () => {
     if (!downloadArtifact) {
       return;
     }
 
-    triggerDownload(downloadArtifact);
-    setHasPendingWorkbookDownload(false);
-    setStatus(text('Workbook download started', 'ブックのダウンロードを開始しました'));
-    addLog(text(`Download started: ${downloadArtifact.filename}`, `ダウンロードを開始しました: ${downloadArtifact.filename}`), 'success', '⚙️');
+    try {
+      const resolvedArtifact =
+        downloadArtifact.serverFile
+          ? {...downloadArtifact, url: await buildWorkbookDownloadUrl(downloadArtifact.serverFile)}
+          : downloadArtifact;
+
+      if (!resolvedArtifact.url) {
+        throw new Error('Download URL is unavailable.');
+      }
+
+      triggerDownload(resolvedArtifact);
+      setHasPendingWorkbookDownload(false);
+      setStatus(text('Workbook download started', 'ブックのダウンロードを開始しました'));
+      addLog(text(`Download started: ${resolvedArtifact.filename}`, `ダウンロードを開始しました: ${resolvedArtifact.filename}`), 'success', '⚙️');
+    } catch (error: any) {
+      addLog(
+        text(`Download failed: ${error?.message || String(error)}`, `ダウンロードに失敗しました: ${error?.message || String(error)}`),
+        'error',
+      );
+      setStatus(text('Download failed', 'ダウンロードに失敗しました'));
+    }
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement> | null, manualFile?: File) => {
@@ -933,7 +984,7 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (downloadArtifact) {
+      if (downloadArtifact?.revokeUrl && downloadArtifact.url) {
         URL.revokeObjectURL(downloadArtifact.url);
       }
     };
@@ -1046,7 +1097,7 @@ export default function App() {
       if (data.error) throw new Error(data.error);
 
       if (data.buffer) {
-        downloadBuffer(data.buffer, selectedFile || 'updated_plan.xlsx');
+        await prepareDownloadArtifact(data.buffer, selectedFile || 'updated_plan.xlsx');
       }
 
       setStatus(
@@ -1155,7 +1206,7 @@ export default function App() {
       }
 
       if (data.buffer) {
-        downloadBuffer(data.buffer, selectedFile || 'updated_plan.xlsx');
+        await prepareDownloadArtifact(data.buffer, selectedFile || 'updated_plan.xlsx');
       }
 
       const summary = (data.summary ?? null) as DailyRunSummary | null;
