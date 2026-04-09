@@ -2200,35 +2200,71 @@ export default function App() {
               </p>
             </div>
 
-            <input ref={fileInputRef} type="file" className="hidden" accept=".xlsx,.xls" onChange={handleFileChange} />
+            {canUseNativeFilePicker ? (
+              <>
+                <input ref={fileInputRef} type="file" className="hidden" accept=".xlsx,.xls" onChange={handleFileChange} />
 
-            <button
-              type="button"
-              onClick={openNativeSelector}
-              className="w-full rounded-[28px] border border-[color:var(--line)] bg-white/55 p-5 text-left transition hover:bg-white/75 dark:bg-white/5 dark:hover:bg-white/8"
-            >
-              <div className="flex items-center gap-4">
-                <div
-                  className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
-                    selectedFile
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
-                  }`}
+                <button
+                  type="button"
+                  onClick={openNativeSelector}
+                  className="w-full rounded-[28px] border border-[color:var(--line)] bg-white/55 p-5 text-left transition hover:bg-white/75 dark:bg-white/5 dark:hover:bg-white/8"
                 >
-                  {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
+                        selectedFile
+                          ? 'bg-emerald-500 text-white'
+                          : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                      }`}
+                    >
+                      {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-medium text-[var(--text-primary)]">
+                        {selectedFile ?? tr('Choose Excel file', 'Excelファイルを選択')}
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                        {selectedFile
+                          ? tr('Tap to replace the current workbook.', 'タップして現在のブックを置き換えます。')
+                          : tr('Tap here to open the system file picker.', 'タップしてシステムのファイルピッカーを開きます。')}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </>
+            ) : (
+              <label className="relative block w-full cursor-pointer rounded-[28px] border border-[color:var(--line)] bg-white/55 p-5 text-left transition hover:bg-white/75 dark:bg-white/5 dark:hover:bg-white/8">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileChange}
+                />
+
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] ${
+                      selectedFile
+                        ? 'bg-emerald-500 text-white'
+                        : 'bg-slate-100 text-slate-500 dark:bg-white/8 dark:text-slate-300'
+                    }`}
+                  >
+                    {selectedFile ? <FileSpreadsheet size={24} /> : <Upload size={24} />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-medium text-[var(--text-primary)]">
+                      {selectedFile ?? tr('Choose Excel file', 'Excelファイルを選択')}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      {selectedFile
+                        ? tr('Tap to replace the current workbook.', 'タップして現在のブックを置き換えます。')
+                        : tr('Tap here to open the system file picker.', 'タップしてシステムのファイルピッカーを開きます。')}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-base font-medium text-[var(--text-primary)]">
-                    {selectedFile ?? tr('Choose Excel file', 'Excelファイルを選択')}
-                  </p>
-                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                    {selectedFile
-                      ? tr('Tap to replace the current workbook.', 'タップして現在のブックを置き換えます。')
-                      : tr('Tap here to open the system file picker.', 'タップしてシステムのファイルピッカーを開きます。')}
-                  </p>
-                </div>
-              </div>
-            </button>
+              </label>
+            )}
           </Panel>
 
           <Panel className="p-6">
