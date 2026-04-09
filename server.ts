@@ -28,6 +28,14 @@ type EmbedClaims = {
   sub: string;
 };
 
+type StartupCacheWarmSummary = {
+  calendarPages: number;
+  failures: string[];
+  nestedDatabases: number;
+  partsEntries: number;
+  warmedDatabases: number;
+};
+
 const EMBED_LINK_SECRET = process.env.EMBED_LINK_SECRET || '';
 const EMBED_SESSION_SECRET = process.env.EMBED_SESSION_SECRET || EMBED_LINK_SECRET;
 const EMBED_BASE_URL = process.env.EMBED_BASE_URL || '';
@@ -43,6 +51,95 @@ const EMBED_API_RATE_LIMIT_MAX = Number.parseInt(process.env.EMBED_API_RATE_LIMI
 const EMBED_API_RATE_LIMIT_WINDOW_SEC = Number.parseInt(process.env.EMBED_API_RATE_LIMIT_WINDOW_SEC || '60', 10);
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join('/tmp', 'notion-backend-uploads');
 const STARTUP_CACHE_WARMUP_ENABLED = (process.env.STARTUP_CACHE_WARMUP || '1').trim() !== '0';
+
+const formatWarmupError = (error: unknown): string => {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return String(error);
+};
+
+const warmStartupCachesSafely = async (): Promise<StartupCacheWarmSummary> => {
+  const notionWithWarmup = notion as typeof notion & {
+    warmStartupCaches?: () => Promise<StartupCacheWarmSummary>;
+  };
+
+  if (typeof notionWithWarmup.warmStartupCaches === 'function') {
+    return notionWithWarmup.warmStartupCaches();
+  }
+
+  const summary: StartupCacheWarmSummary = {
+    calendarPages: 0,
+    failures: [],
+    nestedDatabases: 0,
+    partsEntries: 0,
+    warmedDatabases: 0,
+  };
+
+  const [partsMapResult, calendarPagesResult] = await Promise.allSettled([
+    notion.buildPartsMap(),
+    notion.getCalendarPagesNextN(),
+  ]);
+
+  if (partsMapResult.status === 'fulfilled') {
+    summary.partsEntries = Object.keys(partsMapResult.value).length;
+  } else {
+    summary.failures.push(`parts map: ${formatWarmupError(partsMapResult.reason)}`);
+  }
+
+  let calendarPages: Array<{id: string; title: string; date: string}> = [];
+  if (calendarPagesResult.status === 'fulfilled') {
+    calendarPages = calendarPagesResult.value;
+    summary.calendarPages = calendarPages.length;
+  } else {
+    summary.failures.push(`calendar pages: ${formatWarmupError(calendarPagesResult.reason)}`);
+  }
+
+  if (calendarPages.length === 0) {
+    return summary;
+  }
+
+  const nestedDatabaseResults = await Promise.allSettled(
+    calendarPages.map((page) => notion.findNestedDatabases(page.id, '作業内容')),
+  );
+
+  const nestedDatabaseIds = new Set<string>();
+  nestedDatabaseResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      result.value.forEach((databaseId) => nestedDatabaseIds.add(databaseId));
+      return;
+    }
+
+    const page = calendarPages[index];
+    summary.failures.push(
+      `nested dbs for ${page?.title || page?.id || `page-${index + 1}`}: ${formatWarmupError(result.reason)}`,
+    );
+  });
+
+  const nestedDatabaseList = Array.from(nestedDatabaseIds);
+  summary.nestedDatabases = nestedDatabaseList.length;
+
+  if (nestedDatabaseList.length === 0) {
+    return summary;
+  }
+
+  const nestedPageResults = await Promise.allSettled(
+    nestedDatabaseList.map((databaseId) => notion.getAllPages(databaseId)),
+  );
+
+  nestedPageResults.forEach((result, index) => {
+    if (result.status === 'fulfilled') {
+      summary.warmedDatabases += 1;
+      return;
+    }
+
+    summary.failures.push(
+      `nested db pages ${nestedDatabaseList[index]}: ${formatWarmupError(result.reason)}`,
+    );
+  });
+
+  return summary;
+};
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -400,7 +497,7 @@ const handleCalendar = async (res: express.Response) => {
 };
 
 const handleInitializeCaches = async (res: express.Response) => {
-  const summary = await notion.warmStartupCaches();
+  const summary = await warmStartupCachesSafely();
   res.json(summary);
 };
 
@@ -4009,8 +4106,7 @@ app.listen(port, '0.0.0.0', () => {
   }
 
   console.log('Starting Notion cache warmup...');
-  void notion
-    .warmStartupCaches()
+  void warmStartupCachesSafely()
     .then((summary) => {
       console.log(
         `Notion cache warmup complete: parts=${summary.partsEntries}, calendarPages=${summary.calendarPages}, nestedDatabases=${summary.nestedDatabases}, warmedDatabases=${summary.warmedDatabases}, failures=${summary.failures.length}`
