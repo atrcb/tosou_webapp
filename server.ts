@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import crypto from 'crypto';
+import * as dailyWorkflow from './src/server/dailyWorkflow.js';
 import * as notion from './src/server/notion.js';
 import * as workflow from './src/server/workflow.js';
 
@@ -41,6 +42,7 @@ const EMBED_SESSION_RATE_LIMIT_WINDOW_SEC = Number.parseInt(
 const EMBED_API_RATE_LIMIT_MAX = Number.parseInt(process.env.EMBED_API_RATE_LIMIT_MAX || '120', 10);
 const EMBED_API_RATE_LIMIT_WINDOW_SEC = Number.parseInt(process.env.EMBED_API_RATE_LIMIT_WINDOW_SEC || '60', 10);
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join('/tmp', 'notion-backend-uploads');
+const STARTUP_CACHE_WARMUP_ENABLED = (process.env.STARTUP_CACHE_WARMUP || '1').trim() !== '0';
 
 const nowSeconds = () => Math.floor(Date.now() / 1000);
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
@@ -397,13 +399,19 @@ const handleCalendar = async (res: express.Response) => {
   res.json(data);
 };
 
+const handleInitializeCaches = async (res: express.Response) => {
+  const summary = await notion.warmStartupCaches();
+  res.json(summary);
+};
+
 const handleLoadProducts = async (body: any, res: express.Response) => {
-  const { filePath } = body;
+  const { filePath, pageId, page_id } = body;
   if (!filePath) {
     return res.status(400).json({ error: 'filePath is required' });
   }
   const fullPath = path.isAbsolute(filePath) ? filePath : path.join(UPLOAD_DIR, path.basename(filePath));
-  const data = await workflow.loadProductsFromExcel(fullPath);
+  const targetPageId = typeof pageId === 'string' && pageId.trim() ? pageId.trim() : typeof page_id === 'string' ? page_id.trim() : '';
+  const data = await workflow.loadProductsFromExcel(fullPath, targetPageId || undefined);
   return res.json(data);
 };
 
@@ -412,6 +420,24 @@ const handleSync = async (body: any, res: express.Response) => {
   if (!file_path || !page_id) throw new Error('file_path and page_id are required');
   const fullPath = path.isAbsolute(file_path) ? file_path : path.join(UPLOAD_DIR, path.basename(file_path));
   const data = await workflow.highlightAndSync(fullPath, page_id, products || []);
+  return res.json(data);
+};
+
+const handleDailyRun = async (body: any, res: express.Response) => {
+  const { file_path, page_id } = body;
+  if (!file_path || !page_id) throw new Error('file_path and page_id are required');
+  const fullPath = path.isAbsolute(file_path) ? file_path : path.join(UPLOAD_DIR, path.basename(file_path));
+  const data = await dailyWorkflow.runDailyWorkflow(fullPath, page_id);
+  return res.json(data);
+};
+
+const handleRemoveProduct = async (body: any, res: express.Response) => {
+  const { page_id, product } = body;
+  if (!page_id || !product) {
+    return res.status(400).json({ error: 'page_id and product are required' });
+  }
+
+  const data = await workflow.removeProductFromNotion(page_id, product);
   return res.json(data);
 };
 
@@ -1287,6 +1313,52 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
           }
         });
 
+        productsEl.addEventListener('click', async function (event) {
+          const target = event.target;
+          const button = target && target.closest ? target.closest('[data-remove-index]') : null;
+          if (!button) return;
+
+          const index = Number(button.getAttribute('data-remove-index'));
+          if (Number.isNaN(index) || !state.products[index] || !state.selectedCalendarId || state.removingProductId) {
+            return;
+          }
+
+          const product = state.products[index];
+          state.removingProductId = product.id || String(index);
+          renderProducts();
+          setStatus('Removing item from Notion');
+          addActivity('Removing ' + (product.part || 'item') + ' from Notion.', 'warning', '−');
+
+          try {
+            const response = await apiFetch('/embed-api/remove-product', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                page_id: state.selectedCalendarId,
+                product: product
+              })
+            });
+            const data = await response.json();
+            if (!response.ok) {
+              throw new Error((data && data.error) || 'Failed to remove product.');
+            }
+
+            if (data && data.removed) {
+              state.products[index] = Object.assign({}, product, { alreadySynced: false });
+              setStatus('Notion item removed');
+              addActivity((product.part || 'Item') + ' was removed from Notion.', 'success', '−');
+            } else {
+              setStatus('Notion item not found');
+              addActivity('No matching Notion row was found for ' + (product.part || 'item') + '.', 'warning', '−');
+            }
+          } catch (error) {
+            setError(error && error.message ? error.message : error);
+          } finally {
+            state.removingProductId = '';
+            renderProducts();
+          }
+        });
+
         const loadCalendar = async () => {
           setStatus('Loading calendar');
           const response = await apiFetch('/embed-api/calendar');
@@ -1959,6 +2031,15 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         font-weight: 700;
         color: var(--ink);
       }
+      .mini-button.compact {
+        padding: 7px 10px;
+        font-size: 11px;
+      }
+      .mini-button.rose {
+        background: var(--rose-soft);
+        border-color: rgba(190, 24, 93, 0.16);
+        color: var(--rose);
+      }
       .view-header {
         padding: 20px;
         background:
@@ -2140,6 +2221,13 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         margin-top: 4px;
         font-size: 12px;
         color: var(--muted);
+      }
+      .product-status-row {
+        margin-top: 10px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
       }
       .trial {
         display: inline-block;
@@ -3183,7 +3271,8 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           products: [],
           downloadUrl: '',
           currentView: 'launcher',
-          activity: []
+          activity: [],
+          removingProductId: ''
         };
 
         const escapeHtml = function (value) {
@@ -3220,7 +3309,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             ? state.activity.map(function (entry, index) {
                 return '' +
                   '<div class="activity-item tone-' + escapeHtml(entry.tone || 'info') + '">' +
-                    '<span class="activity-index">' + (index + 1) + '</span>' +
+                    '<span class="activity-index">' + escapeHtml(entry.icon || String(index + 1)) + '</span>' +
                     '<div class="activity-copy">' +
                       '<div class="activity-title">' + escapeHtml(entry.message) + '</div>' +
                       '<div class="muted">' + escapeHtml(entry.time) + '</div>' +
@@ -3233,12 +3322,13 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           activityFeedWorkflowEl.innerHTML = html;
         };
 
-        const addActivity = function (message, tone) {
+        const addActivity = function (message, tone, icon) {
           const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
           state.activity.unshift({
             message: String(message),
             time: timestamp,
-            tone: tone || 'info'
+            tone: tone || 'info',
+            icon: icon || ''
           });
           state.activity = state.activity.slice(0, 6);
           renderActivity();
@@ -3259,11 +3349,13 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             if (!element) return;
             element.classList.toggle('hidden', key !== nextView);
           });
-          window.scrollTo(0, 0);
+          if (!window.location.pathname.startsWith('/embed-app')) {
+            window.scrollTo(0, 0);
+          }
         };
 
         const updateSyncButton = function () {
-          syncButtonEl.disabled = !(state.selectedFile && state.selectedCalendarId && state.products.length);
+          syncButtonEl.disabled = !(state.selectedFile && state.selectedCalendarId && state.products.length) || Boolean(state.removingProductId);
         };
 
         const updateWorkflowSummary = function () {
@@ -3387,6 +3479,15 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
               const trial = product.trial
                 ? '<span class="trial">' + escapeHtml(product.trial) + '</span>'
                 : '';
+              const syncedStatus = product.alreadySynced
+                ? '' +
+                  '<div class="product-status-row">' +
+                    '<span class="tag success">In Notion</span>' +
+                    (state.selectedCalendarId
+                      ? '<button class="mini-button compact rose" type="button" data-remove-index="' + item.index + '"' + (state.removingProductId ? ' disabled' : '') + '>' + escapeHtml(state.removingProductId === product.id ? 'Removing…' : 'Remove') + '</button>'
+                      : '') +
+                  '</div>'
+                : '';
 
               return '' +
                 '<article class="product-card">' +
@@ -3401,6 +3502,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
                       '<span>' + escapeHtml(product.ct || 0) + ' sec / part</span>' +
                     '</div>' +
                   '</div>' +
+                  syncedStatus +
                   '<div class="product-controls">' +
                     '<label class="toggle" data-kind="sync"><input type="checkbox" data-index="' + item.index + '" data-key="selected"' + (product.selected ? ' checked' : '') + ' /><span>Sync</span></label>' +
                     '<label class="toggle" data-kind="color"><input type="checkbox" data-index="' + item.index + '" data-key="colorAccent"' + (product.colorAccent ? ' checked' : '') + ' /><span>Color</span></label>' +
@@ -3507,23 +3609,31 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           const response = await apiFetch('/embed-api/load-products', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: state.selectedFile })
+            body: JSON.stringify({ filePath: state.selectedFile, page_id: state.selectedCalendarId || undefined })
           });
           const data = await response.json();
           if (!response.ok || !Array.isArray(data)) {
             throw new Error((data && data.error) || 'Failed to load products.');
           }
 
+          state.removingProductId = '';
           state.products = data;
           renderProducts();
           setStatus('Ready to sync');
-          addActivity('Loaded ' + data.length + ' products from ' + state.selectedFile + '.', 'success');
+          addActivity('Loaded ' + data.length + ' products from ' + state.selectedFile + '.', 'success', '⚙️');
         };
 
-        calendarSelectEl.addEventListener('change', function (event) {
+        calendarSelectEl.addEventListener('change', async function (event) {
           state.selectedCalendarId = event.target.value;
           updateWorkflowSummary();
           updateSyncButton();
+          if (state.selectedFile) {
+            try {
+              await loadProducts();
+            } catch (error) {
+              setError(error && error.message ? error.message : error);
+            }
+          }
         });
 
         fileInputEl.addEventListener('change', async function (event) {
@@ -3551,7 +3661,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             fileNameEl.textContent = data.filename;
             renderProducts();
             updateSyncButton();
-            addActivity('Workbook uploaded: ' + data.filename + '.', 'success');
+            addActivity('Workbook uploaded: ' + data.filename + '.', 'success', '⚙️');
             setView('workflow');
             await loadProducts();
           } catch (error) {
@@ -3567,7 +3677,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             clearError();
             syncButtonEl.disabled = true;
             setStatus('Syncing to Notion');
-            addActivity('Running sync for the selected paint groups.', 'warning');
+            addActivity('Running sync for the selected paint groups.', 'warning', '⚙️');
             const response = await apiFetch('/embed-api/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -3587,7 +3697,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             }
 
             setStatus('Sync complete');
-            addActivity('Sync finished. The processed workbook is ready to open.', 'success');
+            addActivity('Sync finished. The processed workbook is ready to open.', 'success', '⚙️');
           } catch (error) {
             setError(error && error.message ? error.message : error);
           } finally {
@@ -3670,6 +3780,14 @@ app.get('/api/calendar', async (req, res) => {
   }
 });
 
+app.post('/api/initialize', async (req, res) => {
+  try {
+    await handleInitializeCaches(res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get(
   '/embed-api/me',
   applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
@@ -3690,6 +3808,19 @@ app.get(
   async (req, res) => {
   try {
     await handleCalendar(res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+}
+);
+
+app.post(
+  '/embed-api/initialize',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:read'),
+  async (req, res) => {
+  try {
+    await handleInitializeCaches(res);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -3774,6 +3905,22 @@ app.post('/api/sync', async (req, res) => {
   }
 });
 
+app.post('/api/daily-run', async (req, res) => {
+  try {
+    await handleDailyRun(req.body, res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/remove-product', async (req, res) => {
+  try {
+    await handleRemoveProduct(req.body, res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post(
   '/embed-api/upload',
   applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
@@ -3813,6 +3960,32 @@ app.post(
   }
 );
 
+app.post(
+  '/embed-api/daily-run',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:write'),
+  async (req, res) => {
+    try {
+      await handleDailyRun(req.body, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.post(
+  '/embed-api/remove-product',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:write'),
+  async (req, res) => {
+    try {
+      await handleRemoveProduct(req.body, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 app.get(['/embed-app', '/embed-app/', '/embed-app/*'], (req, res) => {
   if (shouldServeLiteEmbedApp(req)) {
     return renderEmbeddedLiteApp(req, res);
@@ -3830,4 +4003,23 @@ app.get('*', (req, res) => {
 
 app.listen(port, '0.0.0.0', () => {
   console.log(`Backend server running on port ${port}`);
+
+  if (!STARTUP_CACHE_WARMUP_ENABLED) {
+    return;
+  }
+
+  console.log('Starting Notion cache warmup...');
+  void notion
+    .warmStartupCaches()
+    .then((summary) => {
+      console.log(
+        `Notion cache warmup complete: parts=${summary.partsEntries}, calendarPages=${summary.calendarPages}, nestedDatabases=${summary.nestedDatabases}, warmedDatabases=${summary.warmedDatabases}, failures=${summary.failures.length}`
+      );
+      summary.failures.forEach((failure) => {
+        console.warn(`[notion warmup] ${failure}`);
+      });
+    })
+    .catch((error: any) => {
+      console.warn(`[notion warmup] failed: ${error?.message || String(error)}`);
+    });
 });
