@@ -614,9 +614,7 @@ export async function refreshDailyWorkbookState(filePath: string, pageId: string
     }
   }
 
-  highlightProcessedRows(ws, rowNumbersToHighlight);
-
-  if (lotNumbersChanged || rowNumbersToHighlight.size > 0) {
+  if (lotNumbersChanged) {
     const workbookBuffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
     await fs.writeFile(filePath, workbookBuffer);
   }
@@ -624,7 +622,7 @@ export async function refreshDailyWorkbookState(filePath: string, pageId: string
   const summary: DailyPreviewSummary = {
     alreadyHighlightedRows: skippedHighlightedRows,
     matchedNotionRows: rowNumbersToHighlight.size,
-    pendingRows: Math.max(0, processedRowNumbers.size - rowNumbersToHighlight.size),
+    pendingRows: processedRowNumbers.size,
     totalRows,
   };
 

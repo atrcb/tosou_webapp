@@ -2431,8 +2431,8 @@ export default function App() {
                   <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Found in Notion', 'Notion照合')}</p>
                   <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
                     {tr(
-                      `${dailyPreviewSummary.matchedNotionRows} rows matched and highlighted`,
-                      `${dailyPreviewSummary.matchedNotionRows} 行を Notion と照合してハイライト`,
+                      `${dailyPreviewSummary.matchedNotionRows} rows matched in Notion`,
+                      `${dailyPreviewSummary.matchedNotionRows} 行が Notion に一致`,
                     )}
                   </p>
                 </div>
