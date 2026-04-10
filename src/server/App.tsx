@@ -546,9 +546,9 @@ export default function App() {
     }
     return navigator.language.toLowerCase().startsWith('ja') ? 'ja' : 'en';
   });
-  const [embedZoom, setEmbedZoom] = useState<number>(() => {
+  const [pageZoom, setPageZoom] = useState<number>(() => {
     if (typeof window === 'undefined') return 1;
-    const savedZoom = window.localStorage.getItem('app-embed-zoom');
+    const savedZoom = window.localStorage.getItem('app-page-zoom') ?? window.localStorage.getItem('app-embed-zoom');
     const parsed = savedZoom ? Number(savedZoom) : NaN;
     if (Number.isFinite(parsed) && parsed >= 0.7 && parsed <= 1.4) {
       return parsed;
@@ -972,9 +972,9 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('app-embed-zoom', String(embedZoom));
+      window.localStorage.setItem('app-page-zoom', String(pageZoom));
     }
-  }, [embedZoom]);
+  }, [pageZoom]);
 
   useEffect(() => {
     loadCalendarPages();
@@ -1388,6 +1388,20 @@ export default function App() {
     ? 'glass-toolbar sticky top-3 z-20 flex items-center justify-between rounded-[22px] px-3 py-2.5 md:px-4'
     : 'glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5';
   const shellInnerWidthClass = embedMode ? 'mx-auto max-w-[980px]' : 'mx-auto max-w-[1200px]';
+  const shellZoomPaddingStyle: React.CSSProperties | undefined =
+    pageZoom !== 1
+      ? {
+          paddingInline: embedMode
+            ? `${Math.max(4, Math.round(12 / pageZoom))}px`
+            : `clamp(${Math.max(4, Math.round(12 / pageZoom))}px, ${Math.max(6, Math.round(18 / pageZoom))}px, ${Math.max(8, Math.round(24 / pageZoom))}px)`,
+        }
+      : undefined;
+  const shellZoomInnerWidthStyle: React.CSSProperties | undefined =
+    pageZoom !== 1
+      ? {
+          maxWidth: `${Math.round((embedMode ? 980 : 1200) * pageZoom)}px`,
+        }
+      : undefined;
   const contentWidthClass = embedMode ? 'mt-4' : 'mt-6';
   const heroLayoutClass = embedMode ? 'relative space-y-5' : 'relative space-y-8';
   const homeLauncherGridClass = embedMode ? 'grid max-w-[640px] gap-3 sm:grid-cols-2' : 'grid max-w-[860px] gap-5 sm:grid-cols-2';
@@ -1519,15 +1533,6 @@ export default function App() {
       onClick: () => navigateTo('settings'),
     },
   ];
-  const embedZoomStyle: React.CSSProperties | undefined =
-    embedMode && embedZoom !== 1
-      ? {
-          transform: `scale(${embedZoom})`,
-          transformOrigin: 'top left',
-          width: `${100 / embedZoom}%`,
-        }
-      : undefined;
-
   const HomeView = () => (
     <div className={pageStackClass}>
       <Panel strong className={heroPanelClass}>
@@ -2592,9 +2597,8 @@ export default function App() {
     <div className="min-h-screen bg-transparent text-[var(--text-primary)]">
       <div className="relative min-h-screen">
         <main className="min-w-0">
-          <div className={shellPaddingClass}>
-            <div className={shellInnerWidthClass}>
-              <div style={embedZoomStyle}>
+          <div className={shellPaddingClass} style={shellZoomPaddingStyle}>
+            <div className={shellInnerWidthClass} style={shellZoomInnerWidthStyle}>
                 <header className={shellHeaderClass}>
                   <div className="flex items-center gap-3 md:gap-4">
                     <div className="min-w-0">
@@ -2610,31 +2614,29 @@ export default function App() {
                     <span className={`h-2 w-2 rounded-full ${isBusy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                     {localize(status)}
                   </div>
-                  {embedMode && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setEmbedZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
-                        className="icon-button"
-                        aria-label={tr('Zoom out', '縮小')}
-                      >
-                        <Minus size={18} />
-                      </button>
-                      <button
-                        onClick={() => setEmbedZoom(1)}
-                        className="status-pill border-slate-200 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
-                        aria-label={tr('Reset zoom', 'ズームをリセット')}
-                      >
-                        {Math.round(embedZoom * 100)}%
-                      </button>
-                      <button
-                        onClick={() => setEmbedZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 1.4))}
-                        className="icon-button"
-                        aria-label={tr('Zoom in', '拡大')}
-                      >
-                        <Plus size={18} />
-                      </button>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPageZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
+                      className="icon-button"
+                      aria-label={tr('Zoom out', '縮小')}
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <button
+                      onClick={() => setPageZoom(1)}
+                      className="status-pill border-slate-200 bg-white/90 text-slate-800 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-200"
+                      aria-label={tr('Reset zoom', 'ズームをリセット')}
+                    >
+                      {Math.round(pageZoom * 100)}%
+                    </button>
+                    <button
+                      onClick={() => setPageZoom((prev) => clamp(Number((prev + 0.1).toFixed(2)), 0.7, 1.4))}
+                      className="icon-button"
+                      aria-label={tr('Zoom in', '拡大')}
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
                   <div className="md:hidden">
                     <LanguageToggle language={language} onChange={handleLanguageChange} />
                   </div>
@@ -2670,7 +2672,6 @@ export default function App() {
                     </motion.div>
                   </AnimatePresence>
                 </div>
-              </div>
             </div>
           </div>
         </main>
