@@ -381,7 +381,18 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     }
   });
 
-  const actions: any[] = [];
+  type PendingWorkflowAction = {
+    op: 'add' | 'remove';
+    color: string;
+    trial: string;
+    part: string;
+    qty: string;
+    ct: number;
+    date: string;
+    override?: boolean;
+    rowsToHighlight: ExcelRowRecord[];
+  };
+  const actions: PendingWorkflowAction[] = [];
   
   for (const uiProd of selectedProducts) {
     const effectivePart = uiProd.colorAccent ? `${uiProd.part}(${uiProd.color})` : uiProd.part;
@@ -401,20 +412,33 @@ export async function highlightAndSync(filePath: string, pageId: string, product
       continue;
     }
 
-    if (rowsToTouch.length > 0) {
-      rowsToTouch.forEach((entry) => {
-        if (entry.wasHighlighted) return;
-        applyHighlightToRow(entry.row);
-        entry.wasHighlighted = true;
-      });
-    }
+    const rowsToHighlight = rowsToTouch.filter((entry) => !entry.wasHighlighted);
     
     if (isOverride) {
-      actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date, override: true });
+      actions.push({
+        op: 'add',
+        color: colorKey,
+        trial: uiProd.trial,
+        part: effectivePart,
+        qty: uiProd.qty,
+        ct: chosenCt,
+        date: uiProd.date,
+        override: true,
+        rowsToHighlight,
+      });
       continue;
     }
 
-    actions.push({ op: 'add', color: colorKey, trial: uiProd.trial, part: effectivePart, qty: uiProd.qty, ct: chosenCt, date: uiProd.date });
+    actions.push({
+      op: 'add',
+      color: colorKey,
+      trial: uiProd.trial,
+      part: effectivePart,
+      qty: uiProd.qty,
+      ct: chosenCt,
+      date: uiProd.date,
+      rowsToHighlight,
+    });
   }
 
   // Group actions by color and process
@@ -430,6 +454,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
   ]);
   const existingByColor = buildExistingColorPageIndex(existingPages);
   let mutatedNestedDb = false;
+  const rowsToHighlightAfterSync: ExcelRowRecord[] = [];
 
   for (const colorKey in actionsByColor) {
     const acts = actionsByColor[colorKey];
@@ -510,6 +535,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
         partsRt = notionUtils.trimPartsTrailingNewline([...partsRt, ...lineBlocks]);
         qtyRt = notionUtils.appendQtyGreenItalic(qtyRt, act.qty);
         currentCt += act.ct;
+        rowsToHighlightAfterSync.push(...act.rowsToHighlight);
       } else {
         let targetIdx = notionUtils.findPartLineIndex(partsRt, partPageId || null, fullText, act.date, false);
         if (targetIdx === null) {
@@ -541,9 +567,23 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     notion.invalidateDatabasePagesCache(nestedId);
   }
 
+  const highlightedRowNumbers = new Set<number>();
+  let workbookChanged = false;
+  for (const entry of rowsToHighlightAfterSync) {
+    if (entry.wasHighlighted || highlightedRowNumbers.has(entry.rowNumber)) {
+      continue;
+    }
+    applyHighlightToRow(entry.row);
+    entry.wasHighlighted = true;
+    highlightedRowNumbers.add(entry.rowNumber);
+    workbookChanged = true;
+  }
+
   const workbookBuffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
-  await fs.writeFile(filePath, workbookBuffer);
-  return { success: true, buffer: workbookBuffer.toString('base64') };
+  if (workbookChanged) {
+    await fs.writeFile(filePath, workbookBuffer);
+  }
+  return { success: true, buffer: workbookChanged ? workbookBuffer.toString('base64') : null };
 }
 
 export async function removeProductFromNotion(pageId: string, product: WorkflowProduct) {
