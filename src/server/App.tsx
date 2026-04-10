@@ -2594,13 +2594,14 @@ export default function App() {
         <main className="min-w-0">
           <div className={shellPaddingClass}>
             <div className={shellInnerWidthClass}>
-              <header className={shellHeaderClass}>
-                <div className="flex items-center gap-3 md:gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                      <span>{tr('Painting Team', '塗装チーム')}</span>
-                      <ChevronRight size={14} />
-                      <span className="truncate text-[var(--text-primary)]">{localize(VIEW_LABELS[view])}</span>
+              <div style={embedZoomStyle}>
+                <header className={shellHeaderClass}>
+                  <div className="flex items-center gap-3 md:gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                        <span>{tr('Painting Team', '塗装チーム')}</span>
+                        <ChevronRight size={14} />
+                        <span className="truncate text-[var(--text-primary)]">{localize(VIEW_LABELS[view])}</span>
                     </div>
                   </div>
                 </div>
@@ -2653,8 +2654,7 @@ export default function App() {
                 </div>
               </header>
 
-              <div className={contentWidthClass}>
-                <div style={embedZoomStyle}>
+                <div className={contentWidthClass}>
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={view}
