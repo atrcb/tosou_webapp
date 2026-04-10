@@ -281,32 +281,12 @@ export async function loadProductsFromExcel(filePath: string, pageId?: string) {
     return annotatedProducts;
   }
 
-  const syncedRowNumbers = new Set<number>();
   const refreshedProducts = annotatedProducts.map((product) => {
     if (product.alreadySynced) {
-      (product.sourceRows || []).forEach((rowNumber) => syncedRowNumbers.add(rowNumber));
       return { ...product, selected: true };
     }
     return product;
   });
-
-  if (syncedRowNumbers.size === 0) {
-    return refreshedProducts;
-  }
-
-  let workbookChanged = false;
-  ws.eachRow((row, rowNumber) => {
-    if (rowNumber === 1 || !syncedRowNumbers.has(rowNumber) || isRowHighlighted(row)) {
-      return;
-    }
-    applyHighlightToRow(row);
-    workbookChanged = true;
-  });
-
-  if (workbookChanged) {
-    const workbookBuffer = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer);
-    await fs.writeFile(filePath, workbookBuffer);
-  }
 
   return refreshedProducts;
 }
@@ -417,16 +397,16 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     const isOverride = uiProd.override;
     const chosenCt = logic.ceilNumber(uiProd.ct);
 
+    if (uiProd.alreadySynced && !isOverride) {
+      continue;
+    }
+
     if (rowsToTouch.length > 0) {
       rowsToTouch.forEach((entry) => {
         if (entry.wasHighlighted) return;
         applyHighlightToRow(entry.row);
         entry.wasHighlighted = true;
       });
-    }
-
-    if (uiProd.alreadySynced && !isOverride) {
-      continue;
     }
     
     if (isOverride) {
