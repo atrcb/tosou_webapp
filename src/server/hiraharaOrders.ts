@@ -49,7 +49,7 @@ const OWNER_LABEL = '藤平';
 const HEADER_ROW = ['注文　月　日', '品番', '色', '希望納期', '数量', '単価', '価格', ''];
 const DATE_PATTERN = /^(\d{1,4})[\/.-](\d{1,2})[\/.-](\d{1,4})$/;
 const FORMAT_NUMBER = '#,##0';
-const FORMAT_DATE = 'm/d/yy';
+const FORMAT_DATE = 'yyyy/mm/dd';
 const TOTALS_VALUE_FONT = {
   name: 'Arial',
   size: 16,
