@@ -65,18 +65,26 @@ const EXCEL_HIGHLIGHT_FILL: ExcelJS.FillPattern = {
   fgColor: {argb: 'FFFFFF00'},
 };
 
+const HIGHLIGHT_START_COLUMN = 2;
+const HIGHLIGHT_END_COLUMN = 10;
+
+function isYellowFill(fill: ExcelJS.Fill | undefined): boolean {
+  const patternFill = fill as ExcelJS.FillPattern | undefined;
+  if (!patternFill || patternFill.type !== 'pattern' || patternFill.pattern !== 'solid') {
+    return false;
+  }
+
+  const fgCode = patternFill.fgColor?.argb?.toUpperCase() || '';
+  return ['FFFF00', 'FFFFFF00', '00FFFF00', 'FF00FFFF00'].includes(fgCode);
+}
+
 function isRowHighlighted(row: ExcelJS.Row): boolean {
-  for (let i = 1; i <= 40; i += 1) {
-    const cell = row.getCell(i);
-    const fill = cell.fill as ExcelJS.FillPattern;
-    if (fill && fill.type === 'pattern' && fill.pattern === 'solid') {
-      const fgCode = fill.fgColor?.argb?.toUpperCase() || '';
-      if (['FFFF00', 'FFFFFF00', '00FFFF00', 'FF00FFFF00'].includes(fgCode)) {
-        return true;
-      }
+  for (let i = HIGHLIGHT_START_COLUMN; i <= HIGHLIGHT_END_COLUMN; i += 1) {
+    if (!isYellowFill(row.getCell(i).fill)) {
+      return false;
     }
   }
-  return false;
+  return true;
 }
 
 function getHeaders(ws: ExcelJS.Worksheet): Record<string, number> {
@@ -559,7 +567,7 @@ function highlightProcessedRows(ws: ExcelJS.Worksheet, rowNumbers: Set<number>) 
       return;
     }
 
-    for (let i = 1; i <= 10; i += 1) {
+    for (let i = HIGHLIGHT_START_COLUMN; i <= HIGHLIGHT_END_COLUMN; i += 1) {
       row.getCell(i).fill = EXCEL_HIGHLIGHT_FILL;
     }
   });

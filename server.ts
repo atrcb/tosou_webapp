@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import crypto from 'crypto';
 import * as dailyWorkflow from './src/server/dailyWorkflow.js';
+import * as hiraharaOrders from './src/server/hiraharaOrders.js';
 import * as notion from './src/server/notion.js';
 import * as workflow from './src/server/workflow.js';
 
@@ -702,6 +703,58 @@ const handleRemoveProduct = async (body: any, res: express.Response) => {
 
   const data = await workflow.removeProductFromNotion(page_id, product);
   return res.json(data);
+};
+
+const cleanupUploadedWorkbooks = async (files: Express.Multer.File[] | undefined) => {
+  if (!files?.length) {
+    return;
+  }
+
+  await Promise.allSettled(
+    files.map(async (file) => {
+      const fullPath = resolveWorkbookPath(file.filename || file.path || '');
+      if (!fullPath) {
+        return;
+      }
+
+      try {
+        await fs.promises.unlink(fullPath);
+      } catch {
+        // Ignore temp cleanup failures.
+      }
+    }),
+  );
+};
+
+const handleHiraharaCompile = async (files: Express.Multer.File[] | undefined, res: express.Response) => {
+  if (!files?.length) {
+    return res.status(400).json({ error: 'At least one workbook is required' });
+  }
+
+  try {
+    const result = await hiraharaOrders.compileHiraharaOrders(
+      files.map((file) => {
+        const workbook = getUploadedWorkbookInfo(file);
+        return {
+          displayName: workbook.displayName,
+          filePath: resolveWorkbookPath(workbook.storageKey) || file.path,
+        };
+      }),
+    );
+
+    const downloadName = sanitizeWorkbookFilename(result.filename || 'ヒラハラ注文書.xls');
+    const storageKey = createStoredWorkbookKey(downloadName);
+    const outputPath = path.join(UPLOAD_DIR, storageKey);
+    await fs.promises.writeFile(outputPath, result.buffer);
+
+    return res.json({
+      filename: downloadName,
+      fileKey: storageKey,
+      summary: result.summary,
+    });
+  } finally {
+    await cleanupUploadedWorkbooks(files);
+  }
 };
 
 const buildEmbedBootstrapScript = (assetScriptPath: string, bootstrapState: EmbedBootstrapState) => `<script type="module">
@@ -4217,6 +4270,14 @@ app.post('/api/remove-product', async (req, res) => {
   }
 });
 
+app.post('/api/hirahara-orders/compile', upload.array('files', 64), async (req, res) => {
+  try {
+    await handleHiraharaCompile(req.files as Express.Multer.File[] | undefined, res);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post(
   '/embed-api/upload',
   applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
@@ -4290,6 +4351,20 @@ app.post(
   async (req, res) => {
     try {
       await handleRemoveProduct(req.body, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.post(
+  '/embed-api/hirahara-orders/compile',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:write'),
+  upload.array('files', 64),
+  async (req, res) => {
+    try {
+      await handleHiraharaCompile(req.files as Express.Multer.File[] | undefined, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

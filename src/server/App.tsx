@@ -36,7 +36,7 @@ declare global {
   }
 }
 
-type View = 'home' | 'workflow-manager' | 'daily-generator' | 'settings';
+type View = 'home' | 'workflow-manager' | 'daily-generator' | 'hirahara-orders' | 'settings';
 type Theme = 'light' | 'dark';
 type Language = 'en' | 'ja';
 type ReviewCategory = 'all' | 'part' | 'color' | 'trial' | 'date';
@@ -66,6 +66,13 @@ type DailyPreviewSummary = {
   pendingRows: number;
   totalRows: number;
 };
+type HiraharaCompileSummary = {
+  compiledRows: number;
+  monthLabel: string;
+  skippedFiles: string[];
+  sourceFiles: number;
+  sourceOrderSections: number;
+};
 type LauncherTileConfig = {
   key: string;
   icon: any;
@@ -73,6 +80,7 @@ type LauncherTileConfig = {
   label: string;
   subtitle: string;
   badge?: string;
+  card?: boolean;
   compact?: boolean;
   disabled?: boolean;
   spinning?: boolean;
@@ -121,6 +129,7 @@ const VIEW_LABELS: Record<View, LocalizedText> = {
   home: text('Home', 'ホーム'),
   'workflow-manager': text('Workflow', 'ワークフロー'),
   'daily-generator': text('Daily Generator', '日次生成'),
+  'hirahara-orders': text('Hirahara Orders', 'ヒラハラ注文書'),
   settings: text('Settings', '設定'),
 };
 
@@ -374,6 +383,7 @@ const LauncherTile = ({
   label,
   subtitle,
   badge,
+  card = false,
   compact = false,
   disabled = false,
   spinning = false,
@@ -384,6 +394,7 @@ const LauncherTile = ({
   label: string;
   subtitle: string;
   badge?: string;
+  card?: boolean;
   compact?: boolean;
   disabled?: boolean;
   spinning?: boolean;
@@ -393,18 +404,18 @@ const LauncherTile = ({
     type="button"
     onClick={onClick}
     disabled={disabled}
-    className={`launcher-tile text-left disabled:cursor-not-allowed disabled:opacity-75 ${compact ? 'launcher-tile-compact' : ''}`}
+    className={`launcher-tile text-left disabled:cursor-not-allowed disabled:opacity-75 ${compact ? 'launcher-tile-compact' : ''} ${card ? 'launcher-tile-card' : ''}`}
   >
     <div className="flex items-start justify-between gap-3">
-      <div className={`launcher-icon-shell ${launcherAccentClasses[accent]} ${compact ? 'launcher-icon-shell-compact' : ''}`}>
+      <div className={`launcher-icon-shell ${launcherAccentClasses[accent]} ${compact ? 'launcher-icon-shell-compact' : ''} ${card ? 'launcher-icon-shell-card' : ''}`}>
         <span className="launcher-icon-gloss" aria-hidden="true" />
-        <Icon size={compact ? 24 : 26} className={spinning ? 'animate-spin' : ''} />
+        <Icon size={compact ? 24 : card ? 22 : 26} className={spinning ? 'animate-spin' : ''} />
       </div>
       {badge && <span className="launcher-badge">{badge}</span>}
     </div>
-    <div className={`mt-auto ${compact ? 'pt-3.5' : 'pt-4'}`}>
-      <p className={`${compact ? 'text-[0.9rem]' : 'text-base'} font-semibold tracking-[-0.03em] text-[var(--text-primary)]`}>{label}</p>
-      <p className={`leading-snug text-[var(--text-secondary)] ${compact ? 'mt-1 text-[0.72rem]' : 'mt-1 text-[0.82rem]'}`}>{subtitle}</p>
+    <div className={`mt-auto ${compact ? 'pt-3.5' : card ? 'pt-3' : 'pt-4'}`}>
+      <p className={`${compact ? 'text-[0.9rem]' : card ? 'text-[0.95rem]' : 'text-base'} font-semibold tracking-[-0.03em] text-[var(--text-primary)]`}>{label}</p>
+      <p className={`leading-snug text-[var(--text-secondary)] ${compact ? 'mt-1 text-[0.72rem]' : card ? 'mt-1 text-[0.76rem]' : 'mt-1 text-[0.82rem]'}`}>{subtitle}</p>
     </div>
   </button>
 );
@@ -587,10 +598,13 @@ export default function App() {
   const [dailyCalendar, setDailyCalendar] = useState<CalendarPage | null>(null);
   const [dailyPreviewSummary, setDailyPreviewSummary] = useState<DailyPreviewSummary | null>(null);
   const [dailyRunSummary, setDailyRunSummary] = useState<DailyRunSummary | null>(null);
+  const [hiraharaFiles, setHiraharaFiles] = useState<File[]>([]);
+  const [hiraharaCompileSummary, setHiraharaCompileSummary] = useState<HiraharaCompileSummary | null>(null);
   const [reviewQuery, setReviewQuery] = useState('');
   const [reviewCategory, setReviewCategory] = useState<ReviewCategory>('all');
   const [removingProductId, setRemovingProductId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const hiraharaFileInputRef = useRef<HTMLInputElement>(null);
   const view = viewHistory[viewHistory.length - 1] ?? 'home';
   const localize = (message: LocalizedText) => message[language];
   const tr = (en: string, ja: string) => (language === 'ja' ? ja : en);
@@ -598,7 +612,10 @@ export default function App() {
   const isBusy = isSyncing || isInitializingCaches;
   const selectedFileRef = selectedFileKey ?? selectedFile;
   const viewSupportsWorkbookDownload = (targetView: View) =>
-    targetView === 'home' || targetView === 'workflow-manager' || targetView === 'daily-generator';
+    targetView === 'home' ||
+    targetView === 'workflow-manager' ||
+    targetView === 'daily-generator' ||
+    targetView === 'hirahara-orders';
   const getProductSyncKey = (product: Product) =>
     [
       (product.sourceRows ?? []).join(','),
@@ -607,13 +624,12 @@ export default function App() {
       product.trial,
       product.date,
     ].join('|');
-  type ProductState = Pick<Product, 'selected' | 'override' | 'colorAccent'>;
+  type ProductState = Pick<Product, 'override' | 'colorAccent'>;
   const buildProductStateByKey = (sourceProducts: Product[]) =>
     new Map<string, ProductState>(
       sourceProducts.map((product) => [
         getProductSyncKey(product),
         {
-          selected: product.selected,
           override: product.override,
           colorAccent: product.colorAccent,
         },
@@ -703,9 +719,11 @@ export default function App() {
   const prepareDownloadArtifact = async (base64: string, filename: string, serverFile?: string | null) => {
     try {
       const safeFilename = filename || 'updated_plan.xlsx';
-      const artifact: DownloadArtifact = serverFile
-        ? {filename: safeFilename, serverFile}
-        : createObjectUrlDownloadArtifact(base64, safeFilename);
+      const artifact: DownloadArtifact = base64
+        ? createObjectUrlDownloadArtifact(base64, safeFilename)
+        : serverFile
+          ? {filename: safeFilename, serverFile}
+          : createObjectUrlDownloadArtifact(base64, safeFilename);
       replaceDownloadArtifact(artifact);
       setHasPendingWorkbookDownload(true);
       addLog(
@@ -847,6 +865,100 @@ export default function App() {
 
     addLog(text('Using the standard file picker for compatibility.', '互換性のため標準ファイルピッカーを使用します。'), 'info');
     fileInputRef.current?.click();
+  };
+
+  const clearHiraharaSelection = () => {
+    if (!confirmLeaveWithPendingDownload()) {
+      return;
+    }
+
+    if (hasPendingWorkbookDownload) {
+      clearDownloadArtifact();
+    }
+
+    setHiraharaFiles([]);
+    setHiraharaCompileSummary(null);
+    if (hiraharaFileInputRef.current) {
+      hiraharaFileInputRef.current.value = '';
+    }
+  };
+
+  const handleHiraharaFilesChange = async (event: React.ChangeEvent<HTMLInputElement> | null, manualFiles?: File[]) => {
+    const inputElement = event?.target as HTMLInputElement | undefined;
+    const nextFiles = (manualFiles || Array.from(inputElement?.files || [])).filter((file) =>
+      /\.(xls|xlsx)$/i.test(file.name),
+    );
+
+    if (!nextFiles.length) {
+      if (inputElement) {
+        inputElement.value = '';
+      }
+      return;
+    }
+
+    if (!confirmLeaveWithPendingDownload()) {
+      if (inputElement) {
+        inputElement.value = '';
+      }
+      return;
+    }
+
+    if (hasPendingWorkbookDownload) {
+      clearDownloadArtifact();
+    }
+
+    setHiraharaCompileSummary(null);
+    setHiraharaFiles(nextFiles);
+    setStatus(text('Order files ready', '注文書ファイルの準備ができました'));
+    addLog(
+      text(
+        `${nextFiles.length} order files selected for Hirahara compilation.`,
+        `ヒラハラ注文書用に ${nextFiles.length} 件の注文書ファイルを選択しました。`,
+      ),
+      'success',
+      '📄',
+    );
+
+    if (inputElement) {
+      inputElement.value = '';
+    }
+  };
+
+  const openHiraharaSelector = async () => {
+    if (canUseNativeFilePicker) {
+      try {
+        const handles = await (window as any).showOpenFilePicker({
+          types: [
+            {
+              description: 'Excel Files',
+              accept: {
+                'application/vnd.ms-excel': ['.xls'],
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+              },
+            },
+          ],
+          id: 'hirahara-order-picker',
+          multiple: true,
+        });
+        const files = await Promise.all(handles.map((handle: any) => handle.getFile()));
+        await handleHiraharaFilesChange(null, files);
+      } catch (error: any) {
+        if (error.name !== 'AbortError') {
+          addLog(
+            text(
+              `File picker error: ${error.message}. Falling back.`,
+              `ファイルピッカーエラー: ${error.message}。標準モードに切り替えます。`,
+            ),
+            'warning',
+          );
+          hiraharaFileInputRef.current?.click();
+        }
+      }
+      return;
+    }
+
+    addLog(text('Using the standard file picker for compatibility.', '互換性のため標準ファイルピッカーを使用します。'), 'info');
+    hiraharaFileInputRef.current?.click();
   };
 
   const loadCalendarPages = async () => {
@@ -1313,9 +1425,72 @@ export default function App() {
     }
   };
 
+  const handleHiraharaCompile = async () => {
+    if (!hiraharaFiles.length) {
+      return;
+    }
+
+    setIsSyncing(true);
+    setStatus(text('Compiling Hirahara orders', 'ヒラハラ注文書を集計中'));
+    setHiraharaCompileSummary(null);
+    addLog(
+      text(
+        `Compiling ${hiraharaFiles.length} order files into one Hirahara workbook.`,
+        `${hiraharaFiles.length} 件の注文書ファイルを 1 つのヒラハラ注文書に集計しています。`,
+      ),
+      'info',
+      '📄',
+    );
+
+    const formData = new FormData();
+    hiraharaFiles.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    try {
+      const response = await apiFetch('/api/hirahara-orders/compile', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to compile Hirahara orders');
+      }
+
+      await prepareDownloadArtifact('', data.filename || 'ヒラハラ注文書.xlsx', data.fileKey);
+
+      const summary = (data.summary ?? null) as HiraharaCompileSummary | null;
+      setHiraharaCompileSummary(summary);
+      setStatus(text('Compilation complete. Download workbook to save it.', '集計が完了しました。保存するにはブックをダウンロードしてください。'));
+
+      if (summary?.skippedFiles?.length) {
+        summary.skippedFiles.forEach((warning) => {
+          addLog(text(`Compile warning: ${warning}`, `集計警告: ${warning}`), 'warning');
+        });
+      }
+
+      addLog(
+        summary
+          ? text(
+              `Hirahara workbook ready: ${summary.compiledRows} rows from ${summary.sourceFiles} files.`,
+              `ヒラハラ注文書の準備ができました: ${summary.sourceFiles} 件のファイルから ${summary.compiledRows} 行を集計しました。`,
+            )
+          : text('Hirahara workbook is ready to download.', 'ヒラハラ注文書をダウンロードできます。'),
+        'success',
+        '📄',
+      );
+    } catch (error) {
+      addLog(text(`Compile error: ${error}`, `集計エラー: ${error}`), 'error');
+      setStatus(text('Compilation failed', '集計に失敗しました'));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const selectedCount = products.filter((product) => product.selected).length;
   const syncReadyCount = products.filter((product) => product.selected && (!product.alreadySynced || product.override)).length;
   const recentLogs = logs.slice(-3).reverse();
+  const hiraharaSelectedCount = hiraharaFiles.length;
   const normalizedQuery = reviewQuery.trim().toLowerCase();
   const filteredProducts = normalizedQuery
     ? products.filter((product) =>
@@ -1404,7 +1579,9 @@ export default function App() {
       : undefined;
   const contentWidthClass = embedMode ? 'mt-4' : 'mt-6';
   const heroLayoutClass = embedMode ? 'relative space-y-5' : 'relative space-y-8';
-  const homeLauncherGridClass = embedMode ? 'grid max-w-[640px] gap-3 sm:grid-cols-2' : 'grid max-w-[860px] gap-5 sm:grid-cols-2';
+  const homeLauncherGridClass = embedMode
+    ? 'grid gap-3 sm:grid-cols-2 md:grid-cols-3'
+    : 'grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
   const systemLauncherGridClass = embedMode ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-4 md:grid-cols-3';
   const homeInfoGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[1.15fr_0.85fr]' : 'grid gap-6 lg:grid-cols-[1.15fr_0.85fr]';
   const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
@@ -1490,6 +1667,7 @@ export default function App() {
       key: 'workflow',
       icon: RefreshCw,
       accent: 'sky' as LauncherAccent,
+      card: true,
       label: tr('Workflow', 'ワークフロー'),
       subtitle: selectedCalendar || selectedFile ? tr('Resume manual sync', '手動同期を再開') : tr('Manual sync', '手動同期'),
       badge: selectedCalendar && selectedFile ? tr('Ready', '準備完了') : undefined,
@@ -1499,9 +1677,22 @@ export default function App() {
       key: 'daily',
       icon: Play,
       accent: 'emerald' as LauncherAccent,
+      card: true,
       label: tr('Daily', '日次生成'),
       subtitle: tr('Generate today’s plan', '当日の計画を生成'),
       onClick: () => navigateTo('daily-generator'),
+    },
+    {
+      key: 'hirahara-orders',
+      icon: FileSpreadsheet,
+      accent: 'amber' as LauncherAccent,
+      card: true,
+      label: tr('Hirahara Orders', 'ヒラハラ注文書'),
+      subtitle: hiraharaSelectedCount
+        ? tr('Resume multi-file compile', '複数ファイル集計を再開')
+        : tr('Compile uploaded order slips', '複数の注文書を集計'),
+      badge: hiraharaCompileSummary ? tr('Ready', '準備完了') : undefined,
+      onClick: () => navigateTo('hirahara-orders'),
     },
   ];
   const systemLauncherTiles: LauncherTileConfig[] = [
@@ -1603,6 +1794,7 @@ export default function App() {
                 label={tile.label}
                 subtitle={tile.subtitle}
                 badge={tile.badge}
+                card={tile.card}
                 disabled={tile.disabled}
                 spinning={tile.spinning}
                 onClick={tile.onClick}
@@ -2518,6 +2710,251 @@ export default function App() {
     </div>
   );
 
+  const HiraharaOrdersView = () => (
+    <div className={pageStackClass}>
+      <div className="space-y-3">
+        <BackButton label={tr('Back', '戻る')} onClick={goBack} />
+        <div>
+          <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Hirahara Orders', 'ヒラハラ注文書')}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">
+            {tr('Compile multiple order slips into one workbook.', '複数の注文書を 1 つのブックに集計。')}
+          </h1>
+          <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
+            {tr(
+              'Upload multiple Hirahara order files, extract the order rows, and download one computed workbook.',
+              'ヒラハラ向けの注文書を複数アップロードし、注文行を抽出して 1 つの集計ブックとしてダウンロードします。',
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          <Panel className="p-6">
+            <div className="mb-5">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Files', 'ファイル')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Choose order workbooks', '注文書ブックを選択')}</h2>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                {tr(
+                  'The compiler reads only the 注文書 section from each uploaded workbook and ignores the 納品書 copy.',
+                  '各ブックの 注文書 セクションのみを読み取り、納品書 の複製部分は無視します。',
+                )}
+              </p>
+            </div>
+
+            {canUseNativeFilePicker ? (
+              <>
+                <input
+                  ref={hiraharaFileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".xlsx,.xls"
+                  multiple
+                  onChange={handleHiraharaFilesChange}
+                />
+
+                <button
+                  type="button"
+                  onClick={openHiraharaSelector}
+                  className="w-full rounded-[28px] border border-dashed border-[color:var(--line-strong)] bg-white/50 p-5 text-left transition hover:bg-white/72 dark:bg-white/4 dark:hover:bg-white/8"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-amber-500 text-white">
+                      <FileSpreadsheet size={24} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-medium text-[var(--text-primary)]">
+                        {hiraharaSelectedCount
+                          ? tr(`${hiraharaSelectedCount} files selected`, `${hiraharaSelectedCount} 件を選択済み`)
+                          : tr('Choose Excel files', 'Excelファイルを選択')}
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                        {tr(
+                          'Pick multiple .xls or .xlsx order files at once.',
+                          '.xls / .xlsx の注文書ファイルをまとめて選択します。',
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </>
+            ) : (
+              <label className="relative block w-full cursor-pointer rounded-[28px] border border-dashed border-[color:var(--line-strong)] bg-white/50 p-5 text-left transition hover:bg-white/72 dark:bg-white/4 dark:hover:bg-white/8">
+                <input
+                  ref={hiraharaFileInputRef}
+                  type="file"
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  accept=".xlsx,.xls"
+                  multiple
+                  onChange={handleHiraharaFilesChange}
+                />
+
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-amber-500 text-white">
+                    <FileSpreadsheet size={24} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-base font-medium text-[var(--text-primary)]">
+                      {hiraharaSelectedCount
+                        ? tr(`${hiraharaSelectedCount} files selected`, `${hiraharaSelectedCount} 件を選択済み`)
+                        : tr('Choose Excel files', 'Excelファイルを選択')}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                      {tr(
+                        'Pick multiple .xls or .xlsx order files at once.',
+                        '.xls / .xlsx の注文書ファイルをまとめて選択します。',
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </label>
+            )}
+
+            {hiraharaSelectedCount > 0 && (
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={openHiraharaSelector} className="secondary-button">
+                  {tr('Replace files', 'ファイルを入れ替え')}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearHiraharaSelection}
+                  className="rounded-full border border-[color:var(--line)] bg-white/35 px-4 py-2 text-sm font-medium text-[var(--text-secondary)] transition hover:bg-white/55 dark:bg-white/4 dark:hover:bg-white/8"
+                >
+                  {tr('Clear selection', '選択をクリア')}
+                </button>
+              </div>
+            )}
+          </Panel>
+
+          <Panel className="p-6">
+            <div className="mb-5">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Selection', '選択')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('Queued workbooks', '集計対象ブック')}</h2>
+            </div>
+
+            {hiraharaFiles.length === 0 ? (
+              <div className="rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-5 py-8 text-center text-sm text-[var(--text-secondary)] dark:bg-white/3">
+                {tr('Selected files will appear here.', '選択したファイルがここに表示されます。')}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {hiraharaFiles.map((file, index) => (
+                  <div
+                    key={`${file.name}-${index}`}
+                    className="rounded-[22px] border border-[color:var(--line)] bg-white/55 px-4 py-4 dark:bg-white/4"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[var(--text-primary)]">{file.name}</p>
+                        <p className="mt-1 text-xs text-[var(--text-tertiary)]">
+                          {tr(`${Math.max(1, Math.round(file.size / 1024))} KB`, `${Math.max(1, Math.round(file.size / 1024))} KB`)}
+                        </p>
+                      </div>
+                      <span className="status-pill">{index + 1}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </div>
+
+        <Panel strong className="p-6">
+          <div className="space-y-6">
+            <div>
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Compile', '集計')}</p>
+              <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">{tr('One computed workbook', '1つの集計ブック')}</h2>
+              <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                {tr(
+                  'The generated workbook follows the Computed Form layout and is saved as a downloadable .xlsx file.',
+                  '生成されるブックは Computed Form に近いレイアウトで、ダウンロード可能な .xls として保存されます。',
+                )}
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-[24px] border border-[color:var(--line)] bg-white/55 p-4 dark:bg-white/6">
+              <div>
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Files', 'ファイル数')}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {hiraharaSelectedCount
+                    ? tr(`${hiraharaSelectedCount} selected`, `${hiraharaSelectedCount} 件を選択`)
+                    : tr('No files selected', 'ファイル未選択')}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Rule', '抽出ルール')}</p>
+                <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                  {tr('Use 注文書, ignore 納品書', '注文書を使用し、納品書は無視')}
+                </p>
+              </div>
+            </div>
+
+            {hiraharaCompileSummary && (
+              <div className="space-y-3 rounded-[24px] border border-[color:var(--line)] bg-white/55 p-4 dark:bg-white/6">
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Compiled rows', '集計行数')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                    {tr(
+                      `${hiraharaCompileSummary.compiledRows} rows created`,
+                      `${hiraharaCompileSummary.compiledRows} 行を作成`,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Order sections', '注文書セクション')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">
+                    {tr(
+                      `${hiraharaCompileSummary.sourceOrderSections} sections extracted`,
+                      `${hiraharaCompileSummary.sourceOrderSections} セクションを抽出`,
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-[var(--text-tertiary)]">{tr('Period', '対象期間')}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{hiraharaCompileSummary.monthLabel}</p>
+                </div>
+                {hiraharaCompileSummary.skippedFiles.length > 0 && (
+                  <div>
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-200">{tr('Warnings', '警告')}</p>
+                    <div className="mt-2 space-y-2">
+                      {hiraharaCompileSummary.skippedFiles.map((warning, index) => (
+                        <p key={`${warning}-${index}`} className="text-sm text-amber-700 dark:text-amber-100">
+                          {warning}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={handleHiraharaCompile}
+              disabled={!hiraharaFiles.length || isSyncing}
+              className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+            >
+              {isSyncing ? <RefreshCw size={18} className="animate-spin" /> : <FileSpreadsheet size={18} />}
+              {tr('Generate computed workbook', '集計ブックを生成')}
+            </button>
+
+            {downloadArtifact && (
+              <div className="space-y-2 rounded-[24px] border border-[color:var(--line)] bg-white/55 p-4 dark:bg-white/6">
+                {hasPendingWorkbookDownload && (
+                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-200">
+                    {tr('Download required before leaving', '離れる前にダウンロードが必要です')}
+                  </p>
+                )}
+                <button onClick={handleDownloadWorkbook} className="secondary-button w-full justify-center">
+                  {hasPendingWorkbookDownload ? tr('Download workbook', 'ブックをダウンロード') : tr('Download again', '再度ダウンロード')}
+                </button>
+              </div>
+            )}
+          </div>
+        </Panel>
+      </div>
+    </div>
+  );
+
   const SettingsView = () => (
     <div className={pageStackClass}>
       <div className="space-y-3">
@@ -2668,6 +3105,7 @@ export default function App() {
                       {view === 'home' && <HomeView />}
                       {view === 'workflow-manager' && workflowManagerView}
                       {view === 'daily-generator' && <DailyGeneratorView />}
+                      {view === 'hirahara-orders' && <HiraharaOrdersView />}
                       {view === 'settings' && <SettingsView />}
                     </motion.div>
                   </AnimatePresence>
