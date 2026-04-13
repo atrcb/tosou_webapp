@@ -37,18 +37,14 @@ const EXCEL_HIGHLIGHT_FILL: ExcelJS.FillPattern = {
   fgColor: { argb: 'FFFFFF00' },
 };
 
-function isRowHighlighted(row: ExcelJS.Row): boolean {
-  for (let i = 1; i <= 40; i++) {
-    const cell = row.getCell(i);
-    const fill = cell.fill as ExcelJS.FillPattern;
-    if (fill && fill.type === 'pattern' && fill.pattern === 'solid') {
-      const fgCode = fill.fgColor?.argb?.toUpperCase() || '';
-      if (['FFFF00', 'FFFFFF00', '00FFFF00', 'FF00FFFF00'].includes(fgCode)) {
-        return true;
-      }
-    }
+const HIGHLIGHT_START_COLUMN = 2;
+const HIGHLIGHT_END_COLUMN = 10;
+
+function cloneExcelValue<T>(value: T): T {
+  if (value == null) {
+    return value;
   }
-  return false;
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 function getProductPartVariants(part: string, color: string): string[] {
@@ -126,8 +122,11 @@ function buildExistingColorPageIndex(existingPages: any[]): Record<string, Exist
 }
 
 function applyHighlightToRow(row: ExcelJS.Row) {
-  for (let i = 1; i <= 10; i += 1) {
-    row.getCell(i).fill = EXCEL_HIGHLIGHT_FILL;
+  for (let i = HIGHLIGHT_START_COLUMN; i <= HIGHLIGHT_END_COLUMN; i += 1) {
+    const cell = row.getCell(i);
+    const nextStyle = cloneExcelValue(cell.style) || {};
+    nextStyle.fill = cloneExcelValue(EXCEL_HIGHLIGHT_FILL);
+    cell.style = nextStyle;
   }
 }
 
@@ -202,7 +201,6 @@ export async function loadProductsFromExcel(filePath: string, pageId?: string) {
       ctVal = logic.ceilNumber(row.getCell(headers['作業時間(秒)']).value);
     }
     
-    const isYellow = isRowHighlighted(row);
     let colors = logic.splitExcelColor(rawColor, fullName);
     if (colors.length === 0) {
       colors = [logic.normalizeColorKey(rawColor)];
@@ -217,78 +215,68 @@ export async function loadProductsFromExcel(filePath: string, pageId?: string) {
         qty,
         ct: ctVal,
         date: dStr,
-        isYellow,
         rowNumber
       });
     }
   });
 
   const grouped: Record<string, any[]> = {};
-  for (const e of entries) {
-    const key = `${e.color}|${logic.normalizePartKey(e.part)}|${e.trial}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(e);
+  for (const entry of entries) {
+    const key = `${entry.color}|${logic.normalizePartKey(entry.part)}|${entry.trial}|${entry.date}`;
+    if (!grouped[key]) {
+      grouped[key] = [];
+    }
+    grouped[key].push(entry);
   }
 
   const out: WorkflowProduct[] = [];
   let idCounter = 0;
   for (const key in grouped) {
     const items = grouped[key];
-    const fullNames = new Set(items.map(i => logic.cleanStr(i.fullName)).filter(Boolean));
-    
+    const fullNames = new Set(items.map((item) => logic.cleanStr(item.fullName)).filter(Boolean));
+
     if (fullNames.size <= 1) {
-      for (const i of items) {
+      for (const item of items) {
         out.push({
           id: `row-${idCounter++}`,
-          selected: i.isYellow,
+          selected: false,
           colorAccent: false,
           override: false,
-          trial: i.trial,
-          part: i.part,
-          color: i.color,
-          qty: logic.cleanStr(i.qty),
-          ct: i.ct,
-          date: i.date,
-          sourceRows: [i.rowNumber]
+          trial: item.trial,
+          part: item.part,
+          color: item.color,
+          qty: logic.cleanStr(item.qty),
+          ct: item.ct,
+          date: item.date,
+          sourceRows: [item.rowNumber]
         });
       }
-    } else {
-      const i0 = items[0];
-      const date0 = items.find(i => i.date)?.date || '';
-      const qty0 = items.find(i => logic.cleanStr(i.qty))?.qty || '';
-      const ctSum = items.reduce((sum, i) => sum + i.ct, 0);
-      const wasYellowAny = items.some(i => i.isYellow);
-      const sourceRows = Array.from(new Set(items.map((i) => i.rowNumber)));
-      
-      out.push({
-        id: `group-${idCounter++}`,
-        selected: wasYellowAny,
-        colorAccent: false,
-        override: false,
-        trial: i0.trial,
-        part: i0.part,
-        color: i0.color,
-        qty: qty0,
-        ct: ctSum,
-        date: date0,
-        sourceRows
-      });
+      continue;
     }
+
+    const firstItem = items[0];
+    const firstDate = items.find((item) => item.date)?.date || '';
+    const firstQty = items.find((item) => logic.cleanStr(item.qty))?.qty || '';
+    const totalCt = items.reduce((sum, item) => sum + item.ct, 0);
+    const sourceRows = Array.from(new Set(items.map((item) => item.rowNumber)));
+
+    out.push({
+      id: `group-${idCounter++}`,
+      selected: false,
+      colorAccent: false,
+      override: false,
+      trial: firstItem.trial,
+      part: firstItem.part,
+      color: firstItem.color,
+      qty: firstQty,
+      ct: totalCt,
+      date: firstDate,
+      sourceRows
+    });
   }
 
   const annotatedProducts = await annotateProductsWithNotionState(out, pageId);
-  if (!pageId) {
-    return annotatedProducts;
-  }
-
-  const refreshedProducts = annotatedProducts.map((product) => {
-    if (product.alreadySynced) {
-      return { ...product, selected: true };
-    }
-    return product;
-  });
-
-  return refreshedProducts;
+  return annotatedProducts;
 }
 
 export async function highlightAndSync(filePath: string, pageId: string, products: any[]) {
@@ -324,7 +312,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     rowNumber: number;
     wasHighlighted: boolean;
   };
-  const excelIndex: Record<string, { rows: ExcelRowRecord[]; wasHighlighted: boolean; ctTotal: number }> = {};
+  const rowRecordsByNumber = new Map<number, ExcelRowRecord>();
 
   ws.eachRow((row, rowNumber) => {
     if (rowNumber === 1) return;
@@ -332,53 +320,14 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     const part = headers['品目名称'] ? (row.getCell(headers['品目名称']).text || '').trim() : '';
     if (!part) return;
 
-    const trial = headers['試作番号'] ? (row.getCell(headers['試作番号']).text || '').trim() : '';
     const fullName = headers['子品番の正式名称'] ? (row.getCell(headers['子品番の正式名称']).text || '').trim() : '';
-    let derivedColor = '';
-    if (!rawColor && fullName) {
-      const m = /(?:（|\()([^)）]+)(?:）|\))$/.exec(fullName);
-      if (m) derivedColor = logic.normalizeColorKey(m[1]);
-    }
-
-    let ctVal = 0;
-    if (headers['作業時間(秒)']) {
-      ctVal = logic.ceilNumber(row.getCell(headers['作業時間(秒)']).value);
-    }
     
-    const rowIsYellow = isRowHighlighted(row);
-    let colorsToProcess = logic.splitExcelColor(rawColor, fullName);
-    if (colorsToProcess.length === 0) {
-      colorsToProcess = [logic.normalizeColorKey(rawColor)];
-    }
-    
-    const partKey = logic.normalizePartKey(part);
     const rowRecord: ExcelRowRecord = {
       row,
       rowNumber,
-      wasHighlighted: rowIsYellow,
+      wasHighlighted: false,
     };
-    
-    for (const c of colorsToProcess) {
-      const colorKey = logic.normalizeColorKey(c);
-      const key = `${colorKey}|${partKey}|${trial}`;
-      
-      if (!excelIndex[key]) {
-        excelIndex[key] = { rows: [], wasHighlighted: false, ctTotal: 0 };
-      }
-      excelIndex[key].rows.push(rowRecord);
-      
-      const isMixed = rawColor.includes('・') || derivedColor.includes('・');
-      if (isMixed) {
-        const alloc = logic.allocateCtForColors(colorsToProcess, ctVal);
-        excelIndex[key].ctTotal += (alloc[colorKey] ?? ctVal);
-      } else {
-        excelIndex[key].ctTotal += ctVal;
-      }
-      
-      if (rowIsYellow) {
-        excelIndex[key].wasHighlighted = true;
-      }
-    }
+    rowRecordsByNumber.set(rowNumber, rowRecord);
   });
 
   type PendingWorkflowAction = {
@@ -397,13 +346,10 @@ export async function highlightAndSync(filePath: string, pageId: string, product
   for (const uiProd of selectedProducts) {
     const effectivePart = uiProd.colorAccent ? `${uiProd.part}(${uiProd.color})` : uiProd.part;
     const colorKey = logic.normalizeColorKey(uiProd.color);
-    const key = `${colorKey}|${logic.normalizePartKey(uiProd.part)}|${logic.cleanStr(uiProd.trial)}`;
-    const rec = excelIndex[key];
-    const sourceRows = Array.isArray(uiProd.sourceRows) && uiProd.sourceRows.length > 0 ? new Set(uiProd.sourceRows) : null;
-    const rowsToTouch = rec
-      ? sourceRows
-        ? rec.rows.filter((entry) => sourceRows.has(entry.rowNumber))
-        : rec.rows
+    const rowsToTouch = Array.isArray(uiProd.sourceRows)
+      ? uiProd.sourceRows
+          .map((rowNumber) => rowRecordsByNumber.get(Number(rowNumber)))
+          .filter((entry): entry is ExcelRowRecord => Boolean(entry))
       : [];
     const isOverride = uiProd.override;
     const chosenCt = logic.ceilNumber(uiProd.ct);
