@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: tosou-webapp
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.0
+      - key: NOTION_TOKEN
+        sync: false
+      - key: CALENDAR_DATABASE_ID
+        sync: false
+      - key: PARTS_DATABASE_ID
+        sync: false
+      - key: DEFECTIVE_PARTS_DATABASE_ID
+        sync: false
+      - key: EMBED_LINK_SECRET
+        sync: false
+      - key: EMBED_SESSION_SECRET
+        sync: false
+      - key: EMBED_ADMIN_TOKEN
+        sync: false
+      - key: EMBED_BASE_URL
+        sync: false
+      - key: STARTUP_CACHE_WARMUP
+        value: "1"

@@ -1857,6 +1857,12 @@ export default function App() {
     defectiveTrackerLoading ||
     !defectiveTrackerCanSubmit ||
     !defectiveTrackerFormReady;
+  const defectiveTrackerActionStatusLabel = !defectiveTrackerDatabaseAccessible
+    ? tr('Database share needed', 'DB 共有が必要')
+    : defectiveTrackerFormReady
+      ? tr('Ready to save', '登録できます')
+      : tr('Waiting for required fields', '必須項目を入力してください');
+  const defectiveTrackerActionStatusReady = defectiveTrackerDatabaseAccessible && defectiveTrackerFormReady;
   const defectiveTrackerFloatingSummary = [
     {
       label: tr('Color', '色'),
@@ -2094,14 +2100,14 @@ export default function App() {
       : theme === 'dark'
         ? 'inline-flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
         : 'inline-flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/85 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
-  const getTrackerTabButtonClass = (selected: boolean) =>
+  const getTrackerCompactChoiceButtonClass = (selected: boolean) =>
     selected
       ? theme === 'dark'
-        ? 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-sky-400/60 bg-sky-500/14 px-4 py-3 text-left text-sm font-semibold text-sky-100 shadow-[0_14px_30px_rgba(14,165,233,0.16)] transition'
-        : 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-sky-300 bg-sky-50 px-4 py-3 text-left text-sm font-semibold text-sky-900 shadow-[0_14px_30px_rgba(56,189,248,0.16)] transition'
+        ? 'inline-flex items-center gap-2.5 rounded-[18px] border border-sky-400/60 bg-sky-500/14 px-3.5 py-2.5 text-left text-sm font-semibold text-sky-100 shadow-[0_12px_24px_rgba(14,165,233,0.14)] transition'
+        : 'inline-flex items-center gap-2.5 rounded-[18px] border border-sky-300 bg-sky-50 px-3.5 py-2.5 text-left text-sm font-semibold text-sky-900 shadow-[0_12px_24px_rgba(56,189,248,0.14)] transition'
       : theme === 'dark'
-        ? 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
-        : 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-slate-200/90 bg-white/88 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+        ? 'inline-flex items-center gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
+        : 'inline-flex items-center gap-2.5 rounded-[18px] border border-slate-200/90 bg-white/88 px-3.5 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
   const getTrackerPartCardClass = (selected: boolean) =>
     selected
       ? theme === 'dark'
@@ -2188,7 +2194,7 @@ export default function App() {
       accent: 'violet' as LauncherAccent,
       card: true,
       label: tr('Defective Parts Tracker', '欠品入力'),
-      subtitle: tr('Quick entry from 作業内容', '作業内容から素早く入力'),
+      subtitle: tr('Quick entry from 作業内容', '不良部品の追跡を簡素化'),
       badge: defectiveTrackerPartName || defectiveTrackerQuantity ? tr('Open', '入力中') : undefined,
       onClick: () => navigateTo('defective-parts'),
     },
@@ -3227,7 +3233,7 @@ export default function App() {
         <div>
           <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Defective Parts Tracker', '欠品入力')}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">
-            {tr('Create a defective-parts record from 作業内容.', '作業内容から欠品レコードを作成。')}
+            {tr('Create a defective-parts record from 作業内容.', '不良部品を簡単に追跡する。')}
           </h1>
           <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
             {tr(
@@ -3669,7 +3675,7 @@ export default function App() {
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
                         <p className={trackerFieldLabelClass}>{tr('Defect type', '不良類')}</p>
-                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                        <h3 className="mt-1 text-base font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
                           {tr('Choose the defect category', '不良類を選択')}
                         </h3>
                       </div>
@@ -3687,7 +3693,7 @@ export default function App() {
                       </span>
                     </div>
                     {defectiveTrackerTypes.length ? (
-                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mt-3 flex flex-wrap gap-2.5">
                         {defectiveTrackerTypes.map((option) => {
                           const isSelected = option === defectiveTrackerSelectedType;
                           return (
@@ -3699,20 +3705,10 @@ export default function App() {
                                 setDefectiveTrackerNotice(null);
                                 clearDefectiveTrackerFieldError('defectType');
                               }}
-                              className={getTrackerTabButtonClass(isSelected)}
+                              className={getTrackerCompactChoiceButtonClass(isSelected)}
                             >
-                              <span className="min-w-0 break-words pr-2">{option}</span>
-                              <span
-                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] ${
-                                  isSelected
-                                    ? 'bg-emerald-500 text-white'
-                                    : theme === 'dark'
-                                      ? 'border border-white/10 bg-white/[0.05] text-slate-300'
-                                      : 'border border-slate-200/90 bg-white text-slate-500'
-                                }`}
-                              >
-                                {isSelected ? <Check size={15} /> : <ChevronRight size={15} />}
-                              </span>
+                              {isSelected ? <Check size={15} className="shrink-0" /> : <span className="h-2.5 w-2.5 rounded-full bg-current/60" />}
+                              <span className="min-w-0 break-words">{option}</span>
                             </button>
                           );
                         })}
@@ -3736,7 +3732,7 @@ export default function App() {
         <div className={actionToolbarClass}>
           <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
             <div className="space-y-3 xl:flex-1">
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                     {tr('Save summary', '登録サマリー')}
@@ -3745,16 +3741,6 @@ export default function App() {
                     {tr('Floating save bar', 'フローティング登録バー')}
                   </h3>
                 </div>
-                <span className={trackerSelectionStatusClass}>
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      defectiveTrackerSubmitDisabled ? 'bg-amber-400' : 'bg-emerald-400'
-                    }`}
-                  />
-                  {defectiveTrackerSubmitDisabled
-                    ? tr('Waiting for required fields', '必須項目を入力してください')
-                    : tr('Ready to save', '登録できます')}
-                </span>
               </div>
 
               <div className="flex flex-wrap gap-2.5">
@@ -3784,14 +3770,24 @@ export default function App() {
               </p>
             </div>
 
-            <button
-              onClick={handleDefectiveTrackerSubmit}
-              disabled={defectiveTrackerSubmitDisabled}
-              className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none md:w-auto md:min-w-[240px]"
-            >
-              {defectiveTrackerSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
-              {tr('Save defective part', '欠品を登録')}
-            </button>
+            <div className="flex flex-col gap-2 md:items-end">
+              <span className={`${trackerSelectionStatusClass} self-start md:self-end`}>
+                <span
+                  className={`h-2.5 w-2.5 rounded-full ${
+                    defectiveTrackerActionStatusReady ? 'bg-emerald-400' : 'bg-amber-400'
+                  }`}
+                />
+                {defectiveTrackerActionStatusLabel}
+              </span>
+              <button
+                onClick={handleDefectiveTrackerSubmit}
+                disabled={defectiveTrackerSubmitDisabled}
+                className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none md:w-auto md:min-w-[240px]"
+              >
+                {defectiveTrackerSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
+                {tr('Save defective part', '欠品を登録')}
+              </button>
+            </div>
           </div>
         </div>
       </div>
