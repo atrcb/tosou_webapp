@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import * as logic from './logic.js';
 import * as notion from './notion.js';
 import * as notionUtils from './notionUtils.js';
+import { resolveWorkflowManagerNestedDatabase } from './workflowNotion.js';
 
 const NOTION_PAGE_ICON = { type: 'emoji', emoji: '⚙️' };
 
@@ -136,15 +137,16 @@ async function annotateProductsWithNotionState(products: WorkflowProduct[], page
     return baseProducts;
   }
 
-  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
   const partsMapPromise = notion.buildPartsMap();
-  const nestedDbs = await nestedDbsPromise;
-  if (nestedDbs.length === 0) {
+  let nestedId: string | null = null;
+  try {
+    ({nestedId} = await resolveWorkflowManagerNestedDatabase(pageId, '作業内容'));
+  } catch {
     return baseProducts;
   }
 
   const [existingPages, partsMapLocal] = await Promise.all([
-    notion.getAllPages(nestedDbs[0]),
+    notion.getAllPages(nestedId),
     partsMapPromise,
   ]);
   const existingByColor = buildExistingColorPageIndex(existingPages);
@@ -290,15 +292,10 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     return { success: true, buffer: Buffer.from(buffer).toString('base64') };
   }
 
-  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
   const partsMapPromise = notion.buildPartsMap();
   await workbookReadPromise;
 
-  const nestedDbs = await nestedDbsPromise;
-  if (nestedDbs.length === 0) {
-    throw new Error("No nested '作業内容' database found in selected calendar page.");
-  }
-  const nestedId = nestedDbs[0];
+  const {nestedId} = await resolveWorkflowManagerNestedDatabase(pageId, '作業内容');
   const ws = wb.worksheets[0];
   
   const headers: Record<string, number> = {};
@@ -533,14 +530,8 @@ export async function highlightAndSync(filePath: string, pageId: string, product
 }
 
 export async function removeProductFromNotion(pageId: string, product: WorkflowProduct) {
-  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
   const partsMapPromise = notion.buildPartsMap();
-  const nestedDbs = await nestedDbsPromise;
-  if (nestedDbs.length === 0) {
-    throw new Error("No nested '作業内容' database found in selected calendar page.");
-  }
-
-  const nestedId = nestedDbs[0];
+  const {nestedId} = await resolveWorkflowManagerNestedDatabase(pageId, '作業内容');
   const existingPages = await notion.getAllPages(nestedId);
   const existingByColor = buildExistingColorPageIndex(existingPages);
   const colorKey = logic.normalizeColorKey(product.color);

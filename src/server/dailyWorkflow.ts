@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 import * as logic from './logic.js';
 import * as notion from './notion.js';
 import * as notionUtils from './notionUtils.js';
+import {resolveWorkflowManagerNestedDatabase} from './workflowNotion.js';
 
 const NOTION_PAGE_ICON = {type: 'emoji', emoji: '⚙️'};
 const COLOR_PAREN_RE = /(?:（|\()([^)）]+)(?:）|\))$/;
@@ -576,18 +577,14 @@ function highlightProcessedRows(ws: ExcelJS.Worksheet, rowNumbers: Set<number>) 
 export async function refreshDailyWorkbookState(filePath: string, pageId: string) {
   const wb = new ExcelJS.Workbook();
   const workbookReadPromise = wb.xlsx.readFile(filePath);
-  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
   const partsMapPromise = notion.buildPartsMap();
 
   await workbookReadPromise;
 
-  const nestedDbs = await nestedDbsPromise;
-  if (nestedDbs.length === 0) {
-    throw new Error("No nested '作業内容' database found in selected calendar page.");
-  }
+  const {nestedId} = await resolveWorkflowManagerNestedDatabase(pageId, '作業内容');
 
   const [existingPages, partsMap] = await Promise.all([
-    notion.getAllPages(nestedDbs[0]),
+    notion.getAllPages(nestedId),
     partsMapPromise,
   ]);
 
@@ -643,17 +640,11 @@ export async function refreshDailyWorkbookState(filePath: string, pageId: string
 export async function runDailyWorkflow(filePath: string, pageId: string) {
   const wb = new ExcelJS.Workbook();
   const workbookReadPromise = wb.xlsx.readFile(filePath);
-  const nestedDbsPromise = notion.findNestedDatabases(pageId, '作業内容');
   const partsMapPromise = notion.buildPartsMap();
 
   await workbookReadPromise;
 
-  const nestedDbs = await nestedDbsPromise;
-  if (nestedDbs.length === 0) {
-    throw new Error("No nested '作業内容' database found in selected calendar page.");
-  }
-
-  const nestedDbId = nestedDbs[0];
+  const {nestedId: nestedDbId} = await resolveWorkflowManagerNestedDatabase(pageId, '作業内容');
   const ws = wb.worksheets[0];
   const headers = getHeaders(ws);
 

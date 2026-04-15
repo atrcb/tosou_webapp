@@ -36,7 +36,7 @@ declare global {
   }
 }
 
-type View = 'home' | 'workflow-manager' | 'daily-generator' | 'hirahara-orders' | 'settings';
+type View = 'home' | 'workflow-manager' | 'daily-generator' | 'defective-parts' | 'hirahara-orders' | 'settings';
 type Theme = 'light' | 'dark';
 type Language = 'en' | 'ja';
 type ReviewCategory = 'all' | 'part' | 'color' | 'trial' | 'date';
@@ -93,6 +93,29 @@ type StartupCacheWarmSummary = {
   partsEntries: number;
   warmedDatabases: number;
 };
+type DefectiveTrackerField = 'color' | 'defectType' | 'partName' | 'partNumber' | 'quantity';
+type DefectiveTrackerFieldErrors = Partial<Record<DefectiveTrackerField, string>>;
+type DefectiveTrackerNotice = {
+  message: string;
+  tone: 'error' | 'success' | 'warning';
+};
+type DefectiveTrackerSnapshot = {
+  calendarPage: CalendarPage | null;
+  canSubmit: boolean;
+  colorOptions: string[];
+  colorPartMap: Record<string, string[]>;
+  databaseAccessible: boolean;
+  databaseId: string;
+  defectTypeOptions: string[];
+  nestedDatabase: {
+    discoverySource: 'cache' | 'fresh';
+    id: string;
+    title: string;
+  } | null;
+  timeZone: string;
+  today: string;
+  warning: string | null;
+};
 type LauncherAccent = 'sky' | 'emerald' | 'amber' | 'violet' | 'slate';
 
 interface CalendarPage {
@@ -129,6 +152,7 @@ const VIEW_LABELS: Record<View, LocalizedText> = {
   home: text('Home', 'ホーム'),
   'workflow-manager': text('Workflow', 'ワークフロー'),
   'daily-generator': text('Daily Generator', '日次生成'),
+  'defective-parts': text('Defective Parts Tracker', '欠品入力'),
   'hirahara-orders': text('Hirahara Orders', 'ヒラハラ注文書'),
   settings: text('Settings', '設定'),
 };
@@ -598,6 +622,27 @@ export default function App() {
   const [dailyCalendar, setDailyCalendar] = useState<CalendarPage | null>(null);
   const [dailyPreviewSummary, setDailyPreviewSummary] = useState<DailyPreviewSummary | null>(null);
   const [dailyRunSummary, setDailyRunSummary] = useState<DailyRunSummary | null>(null);
+  const [defectiveTrackerCalendar, setDefectiveTrackerCalendar] = useState<CalendarPage | null>(null);
+  const [defectiveTrackerCanSubmit, setDefectiveTrackerCanSubmit] = useState(false);
+  const [defectiveTrackerColorOptions, setDefectiveTrackerColorOptions] = useState<string[]>([]);
+  const [defectiveTrackerColorPartMap, setDefectiveTrackerColorPartMap] = useState<Record<string, string[]>>({});
+  const [defectiveTrackerDatabaseAccessible, setDefectiveTrackerDatabaseAccessible] = useState(false);
+  const [defectiveTrackerDatabaseId, setDefectiveTrackerDatabaseId] = useState('');
+  const [defectiveTrackerLoading, setDefectiveTrackerLoading] = useState(false);
+  const [defectiveTrackerNestedDatabase, setDefectiveTrackerNestedDatabase] =
+    useState<DefectiveTrackerSnapshot['nestedDatabase']>(null);
+  const [defectiveTrackerNotice, setDefectiveTrackerNotice] = useState<DefectiveTrackerNotice | null>(null);
+  const [defectiveTrackerPageId, setDefectiveTrackerPageId] = useState('');
+  const [defectiveTrackerPartName, setDefectiveTrackerPartName] = useState('');
+  const [defectiveTrackerPartNumber, setDefectiveTrackerPartNumber] = useState('');
+  const [defectiveTrackerSelectedColor, setDefectiveTrackerSelectedColor] = useState('');
+  const [defectiveTrackerSubmitting, setDefectiveTrackerSubmitting] = useState(false);
+  const [defectiveTrackerSelectedType, setDefectiveTrackerSelectedType] = useState('');
+  const [defectiveTrackerFieldErrors, setDefectiveTrackerFieldErrors] = useState<DefectiveTrackerFieldErrors>({});
+  const [defectiveTrackerToday, setDefectiveTrackerToday] = useState('');
+  const [defectiveTrackerTypes, setDefectiveTrackerTypes] = useState<string[]>([]);
+  const [defectiveTrackerQuantity, setDefectiveTrackerQuantity] = useState('');
+  const [defectiveTrackerWarning, setDefectiveTrackerWarning] = useState<string | null>(null);
   const [hiraharaFiles, setHiraharaFiles] = useState<File[]>([]);
   const [hiraharaCompileSummary, setHiraharaCompileSummary] = useState<HiraharaCompileSummary | null>(null);
   const [reviewQuery, setReviewQuery] = useState('');
@@ -609,7 +654,7 @@ export default function App() {
   const localize = (message: LocalizedText) => message[language];
   const tr = (en: string, ja: string) => (language === 'ja' ? ja : en);
   const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-  const isBusy = isSyncing || isInitializingCaches;
+  const isBusy = isSyncing || isInitializingCaches || defectiveTrackerLoading || defectiveTrackerSubmitting;
   const selectedFileRef = selectedFileKey ?? selectedFile;
   const viewSupportsWorkbookDownload = (targetView: View) =>
     targetView === 'home' ||
@@ -1021,6 +1066,279 @@ export default function App() {
     }
   };
 
+  const loadDefectiveTrackerSnapshot = async (options?: {pageId?: string; silent?: boolean}) => {
+    const pageId = (options?.pageId ?? defectiveTrackerPageId) || undefined;
+    const silent = options?.silent ?? false;
+    setDefectiveTrackerLoading(true);
+    setDefectiveTrackerWarning(null);
+    setDefectiveTrackerNotice(null);
+    if (!silent) {
+      setStatus(text('Loading defective parts tracker', '欠品入力を読み込み中'));
+    }
+
+    try {
+      const params = new URLSearchParams();
+      if (pageId) {
+        params.set('page_id', pageId);
+      }
+      const response = await apiFetch(`/api/defective-parts/tracker${params.toString() ? `?${params.toString()}` : ''}`);
+      const data = (await response.json().catch(() => ({}))) as Partial<DefectiveTrackerSnapshot>;
+      if (!response.ok) {
+        throw new Error((data as any)?.error || 'Failed to load defective parts tracker');
+      }
+
+      const nextColorOptions = data.colorOptions ?? [];
+      const nextColorPartMap = data.colorPartMap ?? {};
+      const nextSelectedColor =
+        defectiveTrackerSelectedColor && nextColorOptions.includes(defectiveTrackerSelectedColor)
+          ? defectiveTrackerSelectedColor
+          : nextColorOptions[0] ?? '';
+      const nextPartOptions = nextSelectedColor ? nextColorPartMap[nextSelectedColor] ?? [] : [];
+      const nextSelectedPartNumber =
+        defectiveTrackerPartNumber && nextPartOptions.includes(defectiveTrackerPartNumber)
+          ? defectiveTrackerPartNumber
+          : nextPartOptions[0] ?? '';
+      const nextSelectedType =
+        defectiveTrackerSelectedType && (data.defectTypeOptions ?? []).includes(defectiveTrackerSelectedType)
+          ? defectiveTrackerSelectedType
+          : '';
+
+      setDefectiveTrackerCalendar(data.calendarPage ?? null);
+      setDefectiveTrackerCanSubmit(Boolean(data.canSubmit));
+      setDefectiveTrackerColorOptions(nextColorOptions);
+      setDefectiveTrackerColorPartMap(nextColorPartMap);
+      setDefectiveTrackerDatabaseAccessible(Boolean(data.databaseAccessible));
+      setDefectiveTrackerDatabaseId(data.databaseId ?? '');
+      setDefectiveTrackerNestedDatabase(data.nestedDatabase ?? null);
+      setDefectiveTrackerPageId(data.calendarPage?.id ?? pageId ?? '');
+      setDefectiveTrackerToday(data.today ?? '');
+      setDefectiveTrackerTypes(data.defectTypeOptions ?? []);
+      setDefectiveTrackerWarning(data.warning ?? null);
+      setDefectiveTrackerFieldErrors({});
+      setDefectiveTrackerSelectedColor(nextSelectedColor);
+      setDefectiveTrackerPartNumber(nextSelectedPartNumber);
+      setDefectiveTrackerSelectedType(nextSelectedType);
+
+      if (!silent) {
+        setStatus(text('Defective parts tracker ready', '欠品入力の準備ができました'));
+        addLog(
+          text(
+            `Loaded defective parts tracker for ${data.calendarPage?.title || data.today || 'today'}.`,
+            `${data.calendarPage?.title || data.today || '本日'} の欠品入力を読み込みました。`,
+          ),
+          data.warning ? 'warning' : 'success',
+          '⚠️',
+        );
+      }
+    } catch (error: any) {
+      setDefectiveTrackerCalendar(null);
+      setDefectiveTrackerCanSubmit(false);
+      setDefectiveTrackerColorOptions([]);
+      setDefectiveTrackerColorPartMap({});
+      setDefectiveTrackerDatabaseAccessible(false);
+      setDefectiveTrackerDatabaseId('');
+      setDefectiveTrackerNestedDatabase(null);
+      setDefectiveTrackerPageId(pageId ?? '');
+      setDefectiveTrackerSelectedColor('');
+      setDefectiveTrackerPartNumber('');
+      setDefectiveTrackerToday('');
+      setDefectiveTrackerTypes([]);
+      setDefectiveTrackerFieldErrors({});
+      setDefectiveTrackerWarning(error?.message || String(error));
+      setStatus(text('Defective parts tracker failed to load', '欠品入力の読み込みに失敗しました'));
+      addLog(
+        text(
+          `Defective parts tracker error: ${error?.message || String(error)}`,
+          `欠品入力エラー: ${error?.message || String(error)}`,
+        ),
+        'error',
+      );
+    } finally {
+      setDefectiveTrackerLoading(false);
+    }
+  };
+
+  const parseDefectiveTrackerQuantity = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const parsed = Number(trimmed);
+    if (!/^\d+(?:\.\d+)?$/.test(trimmed) || !Number.isFinite(parsed) || parsed <= 0) {
+      return null;
+    }
+
+    return parsed;
+  };
+
+  const handleDefectiveTrackerQuantityChange = (value: string) => {
+    setDefectiveTrackerQuantity(value);
+    setDefectiveTrackerFieldErrors((prev) => {
+      const next = {...prev};
+      const trimmed = value.trim();
+      if (!trimmed) {
+        delete next.quantity;
+        return next;
+      }
+
+      if (parseDefectiveTrackerQuantity(trimmed) == null) {
+        next.quantity = tr('Enter a positive number.', '正の数値を入力してください。');
+      } else {
+        delete next.quantity;
+      }
+      return next;
+    });
+  };
+
+  const stepDefectiveTrackerQuantity = (delta: number) => {
+    const currentValue = parseDefectiveTrackerQuantity(defectiveTrackerQuantity) ?? 0;
+    if (delta < 0 && currentValue <= 1) {
+      return;
+    }
+
+    const nextValue = Math.max(1, currentValue + delta);
+    setDefectiveTrackerNotice(null);
+    clearDefectiveTrackerFieldError('quantity');
+    handleDefectiveTrackerQuantityChange(String(nextValue));
+  };
+
+  const splitDefectiveTrackerPartDisplay = (value: string) => {
+    const cleaned = value.trim();
+    if (!cleaned) {
+      return {mainLabel: '', trialLabel: ''};
+    }
+
+    const patterns = [
+      /^(試作\s*\d+)\s*[・／/|｜:：-]\s*(.+)$/,
+      /^(試作\s*\d+)\s+(.+)$/,
+      /^(試作\s*\d+)([A-Za-z0-9].+)$/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = cleaned.match(pattern);
+      if (match && match[2]) {
+        return {
+          mainLabel: match[2].trim(),
+          trialLabel: match[1].replace(/\s+/g, ''),
+        };
+      }
+    }
+
+    return {mainLabel: cleaned, trialLabel: ''};
+  };
+
+  const clearDefectiveTrackerFieldError = (field: DefectiveTrackerField) => {
+    setDefectiveTrackerFieldErrors((prev) => {
+      if (!prev[field]) {
+        return prev;
+      }
+      const next = {...prev};
+      delete next[field];
+      return next;
+    });
+  };
+
+  const validateDefectiveTrackerForm = (): DefectiveTrackerFieldErrors => {
+    const nextErrors: DefectiveTrackerFieldErrors = {};
+    const trimmedQuantity = defectiveTrackerQuantity.trim();
+    const parsedQuantity = Number(trimmedQuantity);
+
+    if (!defectiveTrackerSelectedColor) {
+      nextErrors.color = tr('Select a color.', '色を選択してください。');
+    }
+    if (!defectiveTrackerPartNumber) {
+      nextErrors.partNumber = tr('Select a part number.', '品番を選択してください。');
+    }
+    if (!defectiveTrackerPartName.trim()) {
+      nextErrors.partName = tr('Enter a part name.', '部品名を入力してください。');
+    }
+    if (!trimmedQuantity) {
+      nextErrors.quantity = tr('Enter a quantity.', '数量を入力してください。');
+    } else if (!/^\d+(?:\.\d+)?$/.test(trimmedQuantity) || !Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
+      nextErrors.quantity = tr('Enter a positive number.', '正の数値を入力してください。');
+    }
+    if (!defectiveTrackerSelectedType) {
+      nextErrors.defectType = tr('Select a defect type.', '不良類を選択してください。');
+    }
+
+    return nextErrors;
+  };
+
+  const handleDefectiveTrackerSubmit = async () => {
+    const nextErrors = validateDefectiveTrackerForm();
+    setDefectiveTrackerFieldErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      setDefectiveTrackerNotice({
+        message: tr('Check the highlighted fields before saving.', '登録前に入力内容を確認してください。'),
+        tone: 'warning',
+      });
+      addLog(
+        text('Defective parts form validation failed.', '欠品入力フォームの検証に失敗しました。'),
+        'warning',
+      );
+      return;
+    }
+
+    setDefectiveTrackerSubmitting(true);
+    setDefectiveTrackerNotice(null);
+    setStatus(text('Saving defective parts', '欠品を登録中'));
+
+    try {
+      const response = await apiFetch('/api/defective-parts/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          item: {
+            color: defectiveTrackerSelectedColor,
+            defectType: defectiveTrackerSelectedType,
+            partName: defectiveTrackerPartName.trim(),
+            partNumber: defectiveTrackerPartNumber,
+            quantity: defectiveTrackerQuantity.trim(),
+          },
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save defective parts');
+      }
+
+      setDefectiveTrackerPartName('');
+      setDefectiveTrackerQuantity('');
+      setDefectiveTrackerFieldErrors({});
+      setDefectiveTrackerNotice({
+        message: tr('The defective part record was saved.', '欠品レコードを登録しました。'),
+        tone: 'success',
+      });
+
+      setStatus(text('Defective parts saved', '欠品を登録しました'));
+      addLog(
+        text(
+          `Saved ${data.created || 1} defective parts entr${(data.created || 1) === 1 ? 'y' : 'ies'}.`,
+          `${data.created || 1} 件の欠品を登録しました。`,
+        ),
+        'success',
+        '⚠️',
+      );
+    } catch (error: any) {
+      setStatus(text('Defective parts save failed', '欠品の登録に失敗しました'));
+      setDefectiveTrackerNotice({
+        message: error?.message || String(error),
+        tone: 'error',
+      });
+      addLog(
+        text(
+          `Defective parts save error: ${error?.message || String(error)}`,
+          `欠品登録エラー: ${error?.message || String(error)}`,
+        ),
+        'error',
+      );
+    } finally {
+      setDefectiveTrackerSubmitting(false);
+    }
+  };
+
   useEffect(() => {
     if (!canUseDirectoryPicker) return;
     idbGet<FileSystemDirectoryHandle>('default-workbook-dir')
@@ -1225,6 +1543,30 @@ export default function App() {
       isActive = false;
     };
   }, [selectedFileRef, dailyCalendar?.id, view]);
+
+  useEffect(() => {
+    if (view !== 'defective-parts') {
+      return;
+    }
+
+    if (defectiveTrackerPageId) {
+      return;
+    }
+
+    void loadDefectiveTrackerSnapshot();
+  }, [view, defectiveTrackerPageId]);
+
+  useEffect(() => {
+    const nextPartOptions = defectiveTrackerSelectedColor
+      ? defectiveTrackerColorPartMap[defectiveTrackerSelectedColor] ?? []
+      : [];
+
+    if (defectiveTrackerPartNumber && nextPartOptions.includes(defectiveTrackerPartNumber)) {
+      return;
+    }
+
+    setDefectiveTrackerPartNumber(nextPartOptions[0] ?? '');
+  }, [defectiveTrackerColorPartMap, defectiveTrackerPartNumber, defectiveTrackerSelectedColor]);
 
   const refreshProductsFromServer = async (sourceProducts: Product[]) => {
     if (!selectedFileRef) {
@@ -1491,6 +1833,66 @@ export default function App() {
   const syncReadyCount = products.filter((product) => product.selected && (!product.alreadySynced || product.override)).length;
   const recentLogs = logs.slice(-3).reverse();
   const hiraharaSelectedCount = hiraharaFiles.length;
+  const defectiveTrackerPartOptions = defectiveTrackerSelectedColor
+    ? defectiveTrackerColorPartMap[defectiveTrackerSelectedColor] ?? []
+    : [];
+  const defectiveTrackerSelectedPartCount = defectiveTrackerPartOptions.length;
+  const defectiveTrackerColorCount = defectiveTrackerColorOptions.length;
+  const defectiveTrackerPartCount = (Object.values(defectiveTrackerColorPartMap) as string[][]).reduce(
+    (total, partNumbers) => total + partNumbers.length,
+    0,
+  );
+  const defectiveTrackerSelectedSource = splitDefectiveTrackerPartDisplay(defectiveTrackerPartNumber);
+  const defectiveTrackerQuantityValue = parseDefectiveTrackerQuantity(defectiveTrackerQuantity);
+  const defectiveTrackerCanDecrementQuantity = (defectiveTrackerQuantityValue ?? 0) > 1;
+  const defectiveTrackerFormReady =
+    Boolean(defectiveTrackerSelectedColor) &&
+    Boolean(defectiveTrackerPartNumber) &&
+    Boolean(defectiveTrackerPartName.trim()) &&
+    Boolean(defectiveTrackerSelectedType) &&
+    Boolean(defectiveTrackerQuantity.trim()) &&
+    !defectiveTrackerFieldErrors.quantity;
+  const defectiveTrackerSubmitDisabled =
+    defectiveTrackerSubmitting ||
+    defectiveTrackerLoading ||
+    !defectiveTrackerCanSubmit ||
+    !defectiveTrackerFormReady;
+  const defectiveTrackerFloatingSummary = [
+    {
+      label: tr('Color', '色'),
+      value: defectiveTrackerSelectedColor || tr('Choose color', '色を選択'),
+    },
+    ...(defectiveTrackerSelectedSource.trialLabel
+      ? [
+          {
+            label: tr('Trial', '試作'),
+            value: defectiveTrackerSelectedSource.trialLabel,
+          },
+        ]
+      : []),
+    {
+      label: tr('Product', '対象部品'),
+      value:
+        defectiveTrackerSelectedSource.mainLabel ||
+        defectiveTrackerPartNumber ||
+        tr('Choose a part', '品番を選択'),
+    },
+    {
+      label: tr('Part name', '部品名'),
+      value: defectiveTrackerPartName.trim() || tr('Enter part name', '部品名を入力'),
+    },
+    {
+      label: tr('Quantity', '数量'),
+      value:
+        defectiveTrackerQuantityValue != null
+          ? String(defectiveTrackerQuantityValue)
+          : tr('Set quantity', '数量を設定'),
+    },
+    {
+      label: tr('Type', '不良類'),
+      value: defectiveTrackerSelectedType || tr('Choose type', '不良類を選択'),
+    },
+  ];
   const normalizedQuery = reviewQuery.trim().toLowerCase();
   const filteredProducts = normalizedQuery
     ? products.filter((product) =>
@@ -1648,6 +2050,104 @@ export default function App() {
     'cursor-not-allowed opacity-35';
   const notionDeleteCircleActiveClass =
     'hover:-translate-y-0.5 active:translate-y-0 focus:outline-none focus:ring-2 focus:ring-rose-200/80';
+  const trackerFieldLabelClass =
+    theme === 'dark'
+      ? 'text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-300'
+      : 'text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-600';
+  const trackerFieldCardClass =
+    theme === 'dark'
+      ? 'rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.62),rgba(15,23,42,0.38))] p-4 shadow-[0_18px_48px_rgba(2,6,23,0.26)]'
+      : 'rounded-[26px] border border-slate-300/90 bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(241,245,249,0.98))] p-4 shadow-[0_20px_44px_rgba(148,163,184,0.18)] ring-1 ring-slate-200/85';
+  const getTrackerFieldCardClass = (field?: DefectiveTrackerField) =>
+    field && defectiveTrackerFieldErrors[field]
+      ? `${trackerFieldCardClass} border-rose-300 dark:border-rose-500/60`
+      : trackerFieldCardClass;
+  const trackerFieldInputClass =
+    theme === 'dark'
+      ? 'mt-2 w-full rounded-[18px] border border-white/10 bg-white/6 px-4 py-3 text-sm font-medium leading-[1.25] text-[var(--text-primary)] outline-none transition placeholder:text-slate-500 focus:border-sky-300 focus:bg-white/10'
+      : 'mt-2 w-full rounded-[18px] border border-slate-300 bg-slate-50/92 px-4 py-3 text-sm font-medium leading-[1.25] text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(148,163,184,0.12)] outline-none transition placeholder:text-slate-500 focus:border-sky-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(125,211,252,0.18),0_12px_24px_rgba(148,163,184,0.18)]';
+  const trackerFieldHintClass =
+    theme === 'dark'
+      ? 'mt-3 text-xs text-[var(--text-secondary)]'
+      : 'mt-3 text-xs text-slate-600';
+  const getTrackerFieldInputClass = (field: DefectiveTrackerField) =>
+    defectiveTrackerFieldErrors[field]
+      ? `${trackerFieldInputClass} border-rose-300 focus:border-rose-300 dark:border-rose-500/60`
+      : trackerFieldInputClass;
+  const trackerSelectionPanelClass =
+    theme === 'dark'
+      ? 'rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.74),rgba(15,23,42,0.48))] p-5 shadow-[0_20px_56px_rgba(2,6,23,0.3)]'
+      : 'rounded-[30px] border border-slate-200/95 bg-[linear-gradient(180deg,rgba(255,255,255,0.99),rgba(241,245,249,0.94))] p-5 shadow-[0_20px_56px_rgba(15,23,42,0.08)]';
+  const trackerSelectionStatusClass =
+    theme === 'dark'
+      ? 'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-semibold text-slate-100'
+      : 'inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.06)]';
+  const trackerSelectionHintClass =
+    theme === 'dark'
+      ? 'rounded-[22px] border border-dashed border-white/10 bg-white/[0.03] px-4 py-6 text-center text-sm text-slate-300'
+      : 'rounded-[22px] border border-dashed border-slate-200/90 bg-slate-50/80 px-4 py-6 text-center text-sm text-slate-600';
+  const getTrackerChoiceButtonClass = (selected: boolean) =>
+    selected
+      ? theme === 'dark'
+        ? 'inline-flex items-center gap-3 rounded-[22px] border border-sky-400/60 bg-sky-500/14 px-4 py-3 text-left text-sm font-semibold text-sky-100 shadow-[0_14px_30px_rgba(14,165,233,0.16)] transition'
+        : 'inline-flex items-center gap-3 rounded-[22px] border border-sky-300 bg-sky-50 px-4 py-3 text-left text-sm font-semibold text-sky-900 shadow-[0_14px_30px_rgba(56,189,248,0.16)] transition'
+      : theme === 'dark'
+        ? 'inline-flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
+        : 'inline-flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/85 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+  const getTrackerTabButtonClass = (selected: boolean) =>
+    selected
+      ? theme === 'dark'
+        ? 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-sky-400/60 bg-sky-500/14 px-4 py-3 text-left text-sm font-semibold text-sky-100 shadow-[0_14px_30px_rgba(14,165,233,0.16)] transition'
+        : 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-sky-300 bg-sky-50 px-4 py-3 text-left text-sm font-semibold text-sky-900 shadow-[0_14px_30px_rgba(56,189,248,0.16)] transition'
+      : theme === 'dark'
+        ? 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
+        : 'flex w-full items-center justify-between gap-3 rounded-[20px] border border-slate-200/90 bg-white/88 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+  const getTrackerPartCardClass = (selected: boolean) =>
+    selected
+      ? theme === 'dark'
+        ? 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-emerald-400/50 bg-emerald-500/12 px-4 py-4 text-left shadow-[0_18px_36px_rgba(16,185,129,0.16)] transition'
+        : 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-emerald-300 bg-emerald-50 px-4 py-4 text-left shadow-[0_18px_36px_rgba(16,185,129,0.14)] transition'
+      : theme === 'dark'
+        ? 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
+        : 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-slate-200/90 bg-white/90 px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+  const trackerPartTrialBadgeClass =
+    theme === 'dark'
+      ? 'inline-flex w-fit items-center rounded-full border border-amber-500/40 bg-amber-500/18 px-2.5 py-1 text-[11px] font-semibold tracking-[0.06em] text-amber-50'
+      : 'inline-flex w-fit items-center rounded-full border border-amber-300 bg-amber-100 px-2.5 py-1 text-[11px] font-semibold tracking-[0.06em] text-amber-950';
+  const trackerPartTitleClass =
+    theme === 'dark'
+      ? 'text-sm font-semibold leading-6 whitespace-normal break-words text-slate-50'
+      : 'text-sm font-semibold leading-6 whitespace-normal break-words text-slate-900';
+  const trackerActionChipClass =
+    theme === 'dark'
+      ? 'min-w-[132px] rounded-[20px] border border-white/10 bg-white/[0.04] px-4 py-3'
+      : 'min-w-[132px] rounded-[20px] border border-slate-200/90 bg-white/94 px-4 py-3 shadow-[0_10px_24px_rgba(148,163,184,0.12)]';
+  const trackerActionChipLabelClass =
+    theme === 'dark'
+      ? 'text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400'
+      : 'text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500';
+  const trackerActionChipValueClass =
+    theme === 'dark'
+      ? 'mt-1 text-sm font-semibold leading-5 text-slate-50 whitespace-normal break-words'
+      : 'mt-1 text-sm font-semibold leading-5 text-slate-900 whitespace-normal break-words';
+  const trackerActionHintClass =
+    theme === 'dark'
+      ? 'text-sm text-slate-300'
+      : 'text-sm text-slate-600';
+  const trackerStepperShellClass =
+    theme === 'dark'
+      ? 'mt-3 flex items-center gap-2 rounded-[20px] border border-white/10 bg-white/[0.04] p-2'
+      : 'mt-3 flex items-center gap-2 rounded-[20px] border border-slate-200/90 bg-slate-50/85 p-2';
+  const trackerStepperInputClass =
+    'min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-center text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)] outline-none placeholder:text-slate-400';
+  const getTrackerStepperButtonClass = (disabled: boolean) =>
+    disabled
+      ? theme === 'dark'
+        ? 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-white/8 bg-white/[0.02] text-slate-500 opacity-45'
+        : 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-slate-200/80 bg-white/70 text-slate-300 opacity-45'
+      : theme === 'dark'
+        ? 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.06] text-slate-100 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12]'
+        : 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-slate-200/90 bg-white text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50';
   const cacheSummaryCards = [
     {
       label: tr('Parts', '部品'),
@@ -1681,6 +2181,16 @@ export default function App() {
       label: tr('Daily', '日次生成'),
       subtitle: tr('Generate today’s plan', '当日の計画を生成'),
       onClick: () => navigateTo('daily-generator'),
+    },
+    {
+      key: 'defective-parts',
+      icon: AlertCircle,
+      accent: 'violet' as LauncherAccent,
+      card: true,
+      label: tr('Defective Parts Tracker', '欠品入力'),
+      subtitle: tr('Quick entry from 作業内容', '作業内容から素早く入力'),
+      badge: defectiveTrackerPartName || defectiveTrackerQuantity ? tr('Open', '入力中') : undefined,
+      onClick: () => navigateTo('defective-parts'),
     },
     {
       key: 'hirahara-orders',
@@ -1848,7 +2358,7 @@ export default function App() {
           </div>
 
           {startupCacheSummary?.failures.length ? (
-            <div className="mt-5 rounded-[22px] border border-amber-200 bg-amber-50/85 px-4 py-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/25 dark:text-amber-100">
+            <div className="mt-5 rounded-[22px] border border-amber-300 bg-amber-100/90 px-4 py-4 text-sm text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50">
               {tr('Cache warmup completed with warnings.', 'キャッシュ初期化は完了しましたが警告があります。')}
             </div>
           ) : null}
@@ -1869,14 +2379,14 @@ export default function App() {
             <div
               className={`mt-6 rounded-[24px] border p-5 ${
                 hasPendingWorkbookDownload
-                  ? 'border-amber-200 bg-amber-50/85 dark:border-amber-900/60 dark:bg-amber-950/25'
+                  ? 'border-amber-300 bg-amber-100/90 dark:border-amber-700/70 dark:bg-amber-950/55'
                   : 'border-emerald-200 bg-emerald-50/80 dark:border-emerald-900/60 dark:bg-emerald-950/25'
               }`}
             >
               <p
                 className={`text-sm font-medium ${
                   hasPendingWorkbookDownload
-                    ? 'text-amber-700 dark:text-amber-200'
+                    ? 'text-amber-950 dark:text-amber-50'
                     : 'text-emerald-700 dark:text-emerald-200'
                 }`}
               >
@@ -1890,7 +2400,7 @@ export default function App() {
                 onClick={handleDownloadWorkbook}
                 className={`mt-4 inline-flex items-center gap-2 text-sm font-medium transition ${
                   hasPendingWorkbookDownload
-                    ? 'text-amber-700 hover:text-amber-800 dark:text-amber-200'
+                    ? 'text-amber-950 hover:text-amber-900 dark:text-amber-50 dark:hover:text-amber-100'
                     : 'text-emerald-700 hover:text-emerald-800 dark:text-emerald-200'
                 }`}
               >
@@ -2710,6 +3220,584 @@ export default function App() {
     </div>
   );
 
+  const DefectivePartsView = () => (
+    <div className={pageStackClass}>
+      <div className="space-y-3">
+        <BackButton label={tr('Back', '戻る')} onClick={goBack} />
+        <div>
+          <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Defective Parts Tracker', '欠品入力')}</p>
+          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">
+            {tr('Create a defective-parts record from 作業内容.', '作業内容から欠品レコードを作成。')}
+          </h1>
+          <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
+            {tr(
+              'Pick the day page, read its nested 「作業内容」 database, then save one defect record at a time into the destination Notion database.',
+              '対象ページを選択し、ネストされた「作業内容」データベースを読み込んで、欠品レコードを 1 件ずつ登録します。',
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+          <Panel className="p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Source page', '参照ページ')}</p>
+                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
+                  {defectiveTrackerCalendar?.title ?? tr('No calendar page found', 'カレンダーページが見つかりません')}
+                </h2>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  {defectiveTrackerCalendar?.date
+                    ? tr(
+                        `${defectiveTrackerCalendar.date} · reading the selected page’s nested 「作業内容」 database`,
+                        `${defectiveTrackerCalendar.date} ・ 選択したページ内の「作業内容」データベースを読み込み`,
+                      )
+                    : defectiveTrackerToday
+                      ? tr(
+                          `${defectiveTrackerToday} · waiting for a matching calendar page`,
+                          `${defectiveTrackerToday} ・ 対応するカレンダーページを待機中`,
+                        )
+                      : tr('Loading today’s context.', '当日の情報を読み込み中です。')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadDefectiveTrackerSnapshot({pageId: defectiveTrackerPageId || defectiveTrackerCalendar?.id})}
+                disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
+                className="secondary-button w-fit"
+              >
+                <RefreshCw size={16} className={defectiveTrackerLoading ? 'animate-spin' : ''} />
+                {tr('Refresh', '再読み込み')}
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Colors', '色')}</p>
+                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
+                  {defectiveTrackerColorCount}
+                </p>
+              </div>
+              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Part numbers', '品番')}</p>
+                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
+                  {defectiveTrackerPartCount}
+                </p>
+              </div>
+              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
+                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Source DB', '参照 DB')}</p>
+                <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
+                  {defectiveTrackerNestedDatabase
+                    ? tr(
+                        defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'Loaded from cache' : 'Fresh search',
+                        defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'キャッシュから取得' : '新規検索',
+                      )
+                    : tr('Unavailable', '未取得')}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <p className="text-sm font-medium text-[var(--text-tertiary)]">
+                {tr('Choose a page using the same search as Workflow Manager', 'ワークフローマネージャーと同じ検索結果からページを選択')}
+              </p>
+              {calendarPages.length === 0 ? (
+                <div className="mt-3 rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-5 py-8 text-center text-sm text-[var(--text-secondary)] dark:bg-white/3">
+                  {tr('Calendar pages are loading.', 'カレンダーページを読み込み中です。')}
+                </div>
+              ) : (
+                <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+                  <div>
+                    <select
+                      value={defectiveTrackerPageId || defectiveTrackerCalendar?.id || ''}
+                      onChange={(event) => {
+                        const nextPageId = event.target.value;
+                        setDefectiveTrackerPageId(nextPageId);
+                        setDefectiveTrackerNotice(null);
+                        setDefectiveTrackerFieldErrors({});
+                        setDefectiveTrackerPartName('');
+                        setDefectiveTrackerQuantity('');
+                        void loadDefectiveTrackerSnapshot({pageId: nextPageId});
+                      }}
+                      disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
+                      style={{
+                        fontFamily: 'inherit',
+                        color: 'var(--text-primary)',
+                        WebkitTextFillColor: 'var(--text-primary)',
+                      }}
+                      className={trackerFieldInputClass}
+                    >
+                      <option value="">{tr('Select a page', 'ページを選択')}</option>
+                      {calendarPages.map((page) => (
+                        <option key={page.id} value={page.id}>
+                          {`${page.date} · ${page.title}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="rounded-[20px] border border-[color:var(--line)] bg-white/45 px-4 py-3 text-sm text-[var(--text-secondary)] dark:bg-white/4">
+                    <p className="font-medium text-[var(--text-primary)]">
+                      {tr('Default target', '既定の対象')}
+                    </p>
+                    <p className="mt-1">
+                      {defectiveTrackerToday
+                        ? tr(`Today is ${defectiveTrackerToday}.`, `本日は ${defectiveTrackerToday} です。`)
+                        : tr('Loading today.', '本日を読み込み中です。')}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className={reviewSummaryPillClass}>
+                {defectiveTrackerFormReady ? tr('Ready to save', '登録できます') : tr('Editing', '入力中')}
+              </span>
+              <span className={reviewSummaryPillClass}>
+                {defectiveTrackerDatabaseAccessible
+                  ? tr('Database connected', 'DB 接続済み')
+                  : tr('Database share needed', 'DB 共有が必要')}
+              </span>
+              {defectiveTrackerNestedDatabase && (
+                <span className={reviewSummaryPillClass}>
+                  {tr(
+                    defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'Cached source' : 'Fresh source',
+                    defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'キャッシュ参照' : '新規参照',
+                  )}
+                </span>
+              )}
+            </div>
+
+            {defectiveTrackerWarning && (
+              <div className="mt-5 rounded-[24px] border border-amber-300 bg-amber-100/90 px-4 py-4 text-sm text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50">
+                {defectiveTrackerWarning}
+              </div>
+            )}
+          </Panel>
+
+          {defectiveTrackerLoading ? (
+            <Panel className="p-6">
+              <div className="flex min-h-[280px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
+                <div className="space-y-3">
+                  <RefreshCw size={24} className="mx-auto animate-spin text-[var(--text-tertiary)]" />
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {tr('Scanning the selected page and nested database.', '選択したページとネストされたデータベースを確認しています。')}
+                  </p>
+                </div>
+              </div>
+            </Panel>
+          ) : defectiveTrackerColorOptions.length === 0 ? (
+            <Panel className="p-6">
+              <div className="flex min-h-[280px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
+                <div className="max-w-sm space-y-3">
+                  <AlertCircle size={24} className="mx-auto text-[var(--text-tertiary)]" />
+                  <h3 className="text-xl font-semibold tracking-[-0.03em]">
+                    {tr('No usable source rows were found', '利用可能な参照行が見つかりません')}
+                  </h3>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {tr(
+                      'Check the selected page, make sure it contains a nested 「作業内容」 database with 色 and 品番 data, then refresh.',
+                      '選択したページに「作業内容」データベースがあり、色と品番データが入っているか確認してから再読み込みしてください。',
+                    )}
+                  </p>
+                </div>
+              </div>
+            </Panel>
+          ) : (
+            <Panel className="p-6">
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Quick form', '簡易入力フォーム')}</p>
+                  <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
+                    {tr('Build one defect record', '欠品を 1 件入力')}
+                  </h2>
+                  <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                    {tr(
+                      '色 and 品番 come from the selected 「作業内容」 database. 品番 updates immediately when 色 changes.',
+                      '色と品番は選択した「作業内容」データベースから取得します。色を変更すると品番もすぐ更新されます。',
+                    )}
+                  </p>
+                </div>
+
+                {defectiveTrackerNotice && (
+                  <div
+                    className={`rounded-[24px] px-4 py-4 text-sm ${
+                      defectiveTrackerNotice.tone === 'success'
+                        ? 'border border-emerald-200 bg-emerald-50/85 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-100'
+                        : defectiveTrackerNotice.tone === 'warning'
+                          ? 'border border-amber-300 bg-amber-100/90 text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50'
+                          : 'border border-rose-200 bg-rose-50/85 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/25 dark:text-rose-100'
+                    }`}
+                  >
+                    {defectiveTrackerNotice.message}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div
+                    className={`${trackerSelectionPanelClass} ${
+                      defectiveTrackerFieldErrors.color ? 'border-rose-300 dark:border-rose-500/60' : ''
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className={trackerFieldLabelClass}>{tr('Choose color', '色を選択')}</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                          {tr('Match the source color group', '参照元の色グループを選択')}
+                        </h3>
+                        <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                          {tr(
+                            'Selecting a color filters the parts list from today’s 作業内容 database.',
+                            '色を選択すると、本日の作業内容データベースから対象の部品だけを絞り込みます。',
+                          )}
+                        </p>
+                      </div>
+                      <span className={trackerSelectionStatusClass}>
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            defectiveTrackerSelectedColor ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-500'
+                          }`}
+                        />
+                        {defectiveTrackerSelectedColor
+                          ? tr(`${defectiveTrackerSelectedColor} selected`, `${defectiveTrackerSelectedColor} を選択中`)
+                          : tr('Waiting for color', '色を選択してください')}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {defectiveTrackerColorOptions.map((color) => {
+                        const isSelected = color === defectiveTrackerSelectedColor;
+                        const partCount = defectiveTrackerColorPartMap[color]?.length ?? 0;
+                        return (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                return;
+                              }
+                              setDefectiveTrackerSelectedColor(color);
+                              setDefectiveTrackerNotice(null);
+                              clearDefectiveTrackerFieldError('color');
+                              clearDefectiveTrackerFieldError('partNumber');
+                            }}
+                            className={getTrackerChoiceButtonClass(isSelected)}
+                          >
+                            {isSelected ? <Check size={16} className="shrink-0" /> : <span className="h-2.5 w-2.5 rounded-full bg-current/60" />}
+                            <span className="font-semibold">{color}</span>
+                            <span className="rounded-full border border-current/10 px-2.5 py-1 text-[11px] font-semibold leading-none opacity-80">
+                              {partCount}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {defectiveTrackerFieldErrors.color && (
+                      <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.color}</p>
+                    )}
+                  </div>
+
+                  <div
+                    className={`${trackerSelectionPanelClass} ${
+                      defectiveTrackerFieldErrors.partNumber ? 'border-rose-300 dark:border-rose-500/60' : ''
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className={trackerFieldLabelClass}>{tr('Choose part', '品番を選択')}</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                          {tr('Pick the exact part from the list', '一覧から対象の部品を選択')}
+                        </h3>
+                        <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                          {tr(
+                            'Each card below comes from the selected color group inside 作業内容.',
+                            '下のカードは、選択した色グループ内の作業内容データから取得しています。',
+                          )}
+                        </p>
+                      </div>
+                      <span className={trackerSelectionStatusClass}>
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            defectiveTrackerPartNumber ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-500'
+                          }`}
+                        />
+                        {defectiveTrackerPartNumber
+                          ? tr('Part selected', '部品を選択済み')
+                          : defectiveTrackerSelectedColor
+                            ? tr(`${defectiveTrackerSelectedPartCount} available`, `${defectiveTrackerSelectedPartCount} 件表示`)
+                            : tr('Choose color first', '先に色を選択')}
+                      </span>
+                    </div>
+
+                    {defectiveTrackerSelectedColor ? (
+                      defectiveTrackerSelectedPartCount ? (
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          {defectiveTrackerPartOptions.map((partNumber) => {
+                            const isSelected = partNumber === defectiveTrackerPartNumber;
+                            const {mainLabel, trialLabel} = splitDefectiveTrackerPartDisplay(partNumber);
+                            return (
+                              <button
+                                key={partNumber}
+                                type="button"
+                                onClick={() => {
+                                  setDefectiveTrackerPartNumber(partNumber);
+                                  setDefectiveTrackerNotice(null);
+                                  clearDefectiveTrackerFieldError('partNumber');
+                                }}
+                                className={getTrackerPartCardClass(isSelected)}
+                              >
+                                <div className="min-w-0 flex-1 pr-2">
+                                  {trialLabel && <span className={trackerPartTrialBadgeClass}>{trialLabel}</span>}
+                                  <p className={`${trackerPartTitleClass} ${trialLabel ? 'mt-3' : ''}`}>
+                                    {mainLabel || partNumber}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] ${
+                                    isSelected
+                                      ? 'bg-emerald-500 text-white'
+                                      : theme === 'dark'
+                                        ? 'border border-white/10 bg-white/[0.05] text-slate-300'
+                                        : 'border border-slate-200/90 bg-white text-slate-500'
+                                  }`}
+                                >
+                                  {isSelected ? <Check size={16} /> : <ChevronRight size={16} />}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className={`mt-4 ${trackerSelectionHintClass}`}>
+                          {tr('No parts were found for this color group.', 'この色グループに部品が見つかりません。')}
+                        </div>
+                      )
+                    ) : (
+                      <div className={`mt-4 ${trackerSelectionHintClass}`}>
+                        {tr('Select a color first to open the parts list.', '先に色を選択すると、部品一覧が表示されます。')}
+                      </div>
+                    )}
+
+                    {defectiveTrackerFieldErrors.partNumber && (
+                      <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partNumber}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className={getTrackerFieldCardClass('partName')}>
+                    <p className={trackerFieldLabelClass}>{tr('Part name', '部品名')}</p>
+                    <input
+                      type="text"
+                      value={defectiveTrackerPartName}
+                      onChange={(event) => {
+                        setDefectiveTrackerPartName(event.target.value);
+                        setDefectiveTrackerNotice(null);
+                        clearDefectiveTrackerFieldError('partName');
+                      }}
+                      className={getTrackerFieldInputClass('partName')}
+                      placeholder={tr('Enter the part name', '部品名を入力')}
+                    />
+                    <p className={trackerFieldHintClass}>
+                      {tr(
+                        'This is the editable 部品名 field that will be written to the defects database.',
+                        'ここで入力した内容が、欠品データベースの部品名プロパティに登録されます。',
+                      )}
+                    </p>
+                    {defectiveTrackerFieldErrors.partName && (
+                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partName}</p>
+                    )}
+                  </div>
+
+                  <div className={getTrackerFieldCardClass('quantity')}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className={trackerFieldLabelClass}>{tr('Quantity', '数量')}</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                          {tr('Adjust with one tap', 'ワンタップで調整')}
+                        </h3>
+                      </div>
+                      <span className={trackerSelectionStatusClass}>
+                        {defectiveTrackerQuantityValue != null
+                          ? tr(`${defectiveTrackerQuantityValue} pcs`, `${defectiveTrackerQuantityValue} 個`)
+                          : tr('Set quantity', '数量を設定')}
+                      </span>
+                    </div>
+                    <div className={trackerStepperShellClass}>
+                      <button
+                        type="button"
+                        onClick={() => stepDefectiveTrackerQuantity(-1)}
+                        disabled={!defectiveTrackerCanDecrementQuantity || defectiveTrackerSubmitting}
+                        className={getTrackerStepperButtonClass(!defectiveTrackerCanDecrementQuantity || defectiveTrackerSubmitting)}
+                        aria-label={tr('Decrease quantity', '数量を減らす')}
+                      >
+                        <Minus size={18} />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={defectiveTrackerQuantity}
+                        onChange={(event) => {
+                          setDefectiveTrackerNotice(null);
+                          handleDefectiveTrackerQuantityChange(event.target.value);
+                        }}
+                        className={trackerStepperInputClass}
+                        placeholder="1"
+                        aria-label={tr('Quantity', '数量')}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => stepDefectiveTrackerQuantity(1)}
+                        disabled={defectiveTrackerSubmitting}
+                        className={getTrackerStepperButtonClass(defectiveTrackerSubmitting)}
+                        aria-label={tr('Increase quantity', '数量を増やす')}
+                      >
+                        <Plus size={18} />
+                      </button>
+                    </div>
+                    <p className={trackerFieldHintClass}>
+                      {tr(
+                        'Use the minus and plus buttons for quick counting. Typing still works if needed.',
+                        '通常はマイナスとプラスで数量調整できます。必要なら手入力も可能です。',
+                      )}
+                    </p>
+                    {defectiveTrackerFieldErrors.quantity && (
+                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.quantity}</p>
+                    )}
+                  </div>
+
+                  <div className={`md:col-span-2 ${getTrackerFieldCardClass('defectType')}`}>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <p className={trackerFieldLabelClass}>{tr('Defect type', '不良類')}</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                          {tr('Choose the defect category', '不良類を選択')}
+                        </h3>
+                      </div>
+                      <span className={trackerSelectionStatusClass}>
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            defectiveTrackerSelectedType ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-500'
+                          }`}
+                        />
+                        {defectiveTrackerSelectedType
+                          ? defectiveTrackerSelectedType
+                          : defectiveTrackerTypes.length
+                            ? tr(`${defectiveTrackerTypes.length} options`, `${defectiveTrackerTypes.length} 件の候補`)
+                            : tr('Unavailable', '未取得')}
+                      </span>
+                    </div>
+                    {defectiveTrackerTypes.length ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {defectiveTrackerTypes.map((option) => {
+                          const isSelected = option === defectiveTrackerSelectedType;
+                          return (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                setDefectiveTrackerSelectedType(option);
+                                setDefectiveTrackerNotice(null);
+                                clearDefectiveTrackerFieldError('defectType');
+                              }}
+                              className={getTrackerTabButtonClass(isSelected)}
+                            >
+                              <span className="min-w-0 break-words pr-2">{option}</span>
+                              <span
+                                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[12px] ${
+                                  isSelected
+                                    ? 'bg-emerald-500 text-white'
+                                    : theme === 'dark'
+                                      ? 'border border-white/10 bg-white/[0.05] text-slate-300'
+                                      : 'border border-slate-200/90 bg-white text-slate-500'
+                                }`}
+                              >
+                                {isSelected ? <Check size={15} /> : <ChevronRight size={15} />}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className={`mt-4 ${trackerSelectionHintClass}`}>
+                        {tr('No defect types are available in the target database yet.', '登録先データベースに不良類の候補がまだありません。')}
+                      </div>
+                    )}
+                    {defectiveTrackerFieldErrors.defectType && (
+                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.defectType}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Panel>
+          )}
+      </div>
+
+      <div className={actionBarClass}>
+        <div className={actionToolbarClass}>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="space-y-3 xl:flex-1">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                    {tr('Save summary', '登録サマリー')}
+                  </p>
+                  <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+                    {tr('Floating save bar', 'フローティング登録バー')}
+                  </h3>
+                </div>
+                <span className={trackerSelectionStatusClass}>
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full ${
+                      defectiveTrackerSubmitDisabled ? 'bg-amber-400' : 'bg-emerald-400'
+                    }`}
+                  />
+                  {defectiveTrackerSubmitDisabled
+                    ? tr('Waiting for required fields', '必須項目を入力してください')
+                    : tr('Ready to save', '登録できます')}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2.5">
+                {defectiveTrackerFloatingSummary.map((item) => (
+                  <div key={`${item.label}-${item.value}`} className={trackerActionChipClass}>
+                    <p className={trackerActionChipLabelClass}>{item.label}</p>
+                    <p className={trackerActionChipValueClass}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <p className={trackerActionHintClass}>
+                {!defectiveTrackerDatabaseAccessible
+                  ? tr(
+                      'The save button stays locked until the defects database is shared with this Notion integration.',
+                      '欠品データベースがこの Notion 連携に共有されるまで、登録ボタンは有効になりません。',
+                    )
+                  : defectiveTrackerFormReady
+                    ? tr(
+                        'Saving creates one new defective-parts row with the selection shown above.',
+                        '上記の内容で、欠品データベースに 1 件の新規レコードを作成します。',
+                      )
+                    : tr(
+                        'Complete the missing fields above, then save from here.',
+                        '不足している項目を入力したら、ここから登録できます。',
+                      )}
+              </p>
+            </div>
+
+            <button
+              onClick={handleDefectiveTrackerSubmit}
+              disabled={defectiveTrackerSubmitDisabled}
+              className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none md:w-auto md:min-w-[240px]"
+            >
+              {defectiveTrackerSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
+              {tr('Save defective part', '欠品を登録')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   const HiraharaOrdersView = () => (
     <div className={pageStackClass}>
       <div className="space-y-3">
@@ -3102,11 +4190,13 @@ export default function App() {
                       exit={reducedMotion ? {opacity: 1, y: 0} : {opacity: 0, y: -8}}
                       transition={{duration: reducedMotion ? 0 : 0.18}}
                     >
-                      {view === 'home' && <HomeView />}
+                      {/* Render inline view trees directly so local input edits do not remount nested view components. */}
+                      {view === 'home' && HomeView()}
                       {view === 'workflow-manager' && workflowManagerView}
-                      {view === 'daily-generator' && <DailyGeneratorView />}
-                      {view === 'hirahara-orders' && <HiraharaOrdersView />}
-                      {view === 'settings' && <SettingsView />}
+                      {view === 'daily-generator' && DailyGeneratorView()}
+                      {view === 'defective-parts' && DefectivePartsView()}
+                      {view === 'hirahara-orders' && HiraharaOrdersView()}
+                      {view === 'settings' && SettingsView()}
                     </motion.div>
                   </AnimatePresence>
                 </div>

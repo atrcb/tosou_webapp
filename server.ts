@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import crypto from 'crypto';
 import * as dailyWorkflow from './src/server/dailyWorkflow.js';
+import * as defectiveParts from './src/server/defectiveParts.js';
 import * as hiraharaOrders from './src/server/hiraharaOrders.js';
 import * as notion from './src/server/notion.js';
 import * as workflow from './src/server/workflow.js';
@@ -695,6 +696,22 @@ const handleDailyRun = async (body: any, res: express.Response) => {
   return res.json(data);
 };
 
+const handleDefectiveTracker = async (pageId: string | undefined, res: express.Response) => {
+  const data = await defectiveParts.loadDefectiveTrackerSnapshot(pageId);
+  return res.json(data);
+};
+
+const handleDefectivePartsSubmit = async (body: any, res: express.Response) => {
+  const {item, items} = body || {};
+  const submissions = Array.isArray(items) ? items : item ? [item] : null;
+  if (!Array.isArray(submissions) || submissions.length === 0) {
+    return res.status(400).json({error: 'item or items is required'});
+  }
+
+  const data = await defectiveParts.submitDefectiveParts(submissions);
+  return res.json(data);
+};
+
 const handleRemoveProduct = async (body: any, res: express.Response) => {
   const { page_id, product } = body;
   if (!page_id || !product) {
@@ -811,6 +828,11 @@ const buildEmbedBootstrapScript = (assetScriptPath: string, bootstrapState: Embe
 </script>`;
 
 const shouldServeLiteEmbedApp = (req: express.Request): boolean => {
+  const tool = String(req.query?.tool || '').toLowerCase();
+  if (tool === 'defects' || tool === 'bad-defect-tracker' || tool === 'defective-parts') {
+    return false;
+  }
+
   const forceFull = String(req.query?.full || '').toLowerCase();
   if (forceFull === '1' || forceFull === 'true') {
     return false;
@@ -3673,6 +3695,14 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           }
         };
 
+        const openFullDefectsView = function () {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tool', 'defects');
+          url.searchParams.set('full', '1');
+          url.searchParams.delete('lite');
+          window.location.href = url.toString();
+        };
+
         const updateSyncButton = function () {
           syncButtonEl.disabled = !((state.selectedFileKey || state.selectedFile) && state.selectedCalendarId && state.products.length) || Boolean(state.removingProductId);
         };
@@ -3850,7 +3880,12 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
 
         Array.from(document.querySelectorAll('[data-launch]')).forEach(function (button) {
           button.addEventListener('click', function () {
-            setView(button.getAttribute('data-launch'));
+            const nextView = button.getAttribute('data-launch');
+            if (nextView === 'defects') {
+              openFullDefectsView();
+              return;
+            }
+            setView(nextView);
           });
         });
 
@@ -4048,8 +4083,9 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
               setView('workflow');
             } else if (tool === 'daily' || tool === 'daily-generator') {
               setView('daily');
-            } else if (tool === 'defects' || tool === 'bad-defect-tracker') {
-              setView('defects');
+            } else if (tool === 'defects' || tool === 'bad-defect-tracker' || tool === 'defective-parts') {
+              openFullDefectsView();
+              return;
             } else {
               setView('launcher');
             }
@@ -4262,6 +4298,23 @@ app.post('/api/daily-run', async (req, res) => {
   }
 });
 
+app.get('/api/defective-parts/tracker', async (req, res) => {
+  try {
+    const pageId = readQueryStringValue(req.query?.page_id) || readQueryStringValue(req.query?.pageId) || undefined;
+    await handleDefectiveTracker(pageId, res);
+  } catch (error: any) {
+    res.status(500).json({error: error.message});
+  }
+});
+
+app.post('/api/defective-parts/submit', async (req, res) => {
+  try {
+    await handleDefectivePartsSubmit(req.body, res);
+  } catch (error: any) {
+    res.status(500).json({error: error.message});
+  }
+});
+
 app.post('/api/remove-product', async (req, res) => {
   try {
     await handleRemoveProduct(req.body, res);
@@ -4338,6 +4391,33 @@ app.post(
   async (req, res) => {
     try {
       await handleDailyRun(req.body, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.get(
+  '/embed-api/defective-parts/tracker',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:read'),
+  async (req, res) => {
+    try {
+      const pageId = readQueryStringValue(req.query?.page_id) || readQueryStringValue(req.query?.pageId) || undefined;
+      await handleDefectiveTracker(pageId, res);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.post(
+  '/embed-api/defective-parts/submit',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:write'),
+  async (req, res) => {
+    try {
+      await handleDefectivePartsSubmit(req.body, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

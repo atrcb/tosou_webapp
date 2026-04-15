@@ -35,6 +35,31 @@ export function richTextToLines(rt: any[]): any[][] {
   const lines: any[][] = [];
   let cur: any[] = [];
   for (const frag of (rt || [])) {
+    if (frag.type === 'text') {
+      const content = frag.text?.content || '';
+      if (content.includes('\n')) {
+        const segments = content.split('\n');
+        segments.forEach((segment, index) => {
+          if (segment) {
+            cur.push({
+              ...frag,
+              text: {
+                ...(frag.text || {}),
+                content: segment,
+              },
+              plain_text: segment,
+            });
+          }
+
+          if (index < segments.length - 1) {
+            lines.push(cur);
+            cur = [];
+          }
+        });
+        continue;
+      }
+    }
+
     if (frag.type === 'text' && frag.text?.content === '\n') {
       lines.push(cur);
       cur = [];

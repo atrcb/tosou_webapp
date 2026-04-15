@@ -34,6 +34,8 @@ const nestedDatabasesMemoryCache = new Map<string, { fetchedAt: number; ids: str
 const nestedDatabasesInFlight = new Map<string, Promise<string[]>>();
 let startupCacheWarmInFlight: Promise<StartupCacheWarmSummary> | null = null;
 
+export type NestedDatabaseLookupSource = 'cache' | 'fresh';
+
 export function initNotion() {
   if (!process.env.NOTION_TOKEN) {
     throw new Error('NOTION_TOKEN is missing. Please set it in .env');
@@ -115,6 +117,19 @@ function getDatabasePagesCacheKey(databaseId: string, filter?: any, sorts?: any[
 
 function getNestedDatabasesCacheKey(pageId: string, targetTitle: string): string {
   return `${pageId}::${targetTitle}`;
+}
+
+function extractTitleFromProperties(properties: Record<string, any>): string {
+  for (const key in properties) {
+    if (properties[key]?.type === 'title') {
+      return properties[key].title?.[0]?.plain_text || '';
+    }
+  }
+  return '';
+}
+
+function extractCalendarDateFromProperties(properties: Record<string, any>): string {
+  return properties['日付']?.date?.start || '';
 }
 
 export function invalidateDatabasePagesCache(databaseId?: string) {
@@ -201,7 +216,7 @@ export async function getCalendarPagesNextN(n: number = 4, lookaheadDays: number
   const startDay = new Date();
   startDay.setDate(today.getDate() - 2); // 2 days ago
   const endDay = new Date();
-  endDay.setDate(today.getDate() + 2); // 2 days from now
+  endDay.setDate(today.getDate() + Math.max(lookaheadDays, 2));
   
   const pages = await getAllPages(process.env.CALENDAR_DATABASE_ID, {
     and: [
@@ -215,23 +230,66 @@ export async function getCalendarPagesNextN(n: number = 4, lookaheadDays: number
   const out: Array<{ id: string, title: string, date: string }> = [];
   for (const p of pages) {
     const props = (p as any).properties;
-    const dStr = props['日付']?.date?.start || '';
-    
-    // Find title
-    let title = '';
-    for (const key in props) {
-      if (props[key].type === 'title') {
-        title = props[key].title?.[0]?.plain_text || '';
-        break;
-      }
-    }
-    
+    const dStr = extractCalendarDateFromProperties(props);
+
+    const title = extractTitleFromProperties(props);
+
     if (p.id && dStr) {
       out.push({ id: p.id, title, date: dStr });
     }
   }
   
-  return out;
+  return typeof n === 'number' && n > 0 ? out.slice(0, n) : out;
+}
+
+export async function getCalendarPageForDate(dateIso: string): Promise<{id: string; title: string; date: string} | null> {
+  if (!process.env.CALENDAR_DATABASE_ID) throw new Error('CALENDAR_DATABASE_ID missing.');
+
+  const pages = await getAllPages(
+    process.env.CALENDAR_DATABASE_ID,
+    {
+      property: '日付',
+      date: {equals: dateIso},
+    },
+    [{property: '日付', direction: 'ascending'}],
+  );
+
+  const page = pages[0];
+  if (!page) {
+    return null;
+  }
+
+  const props = (page as any).properties || {};
+  const date = extractCalendarDateFromProperties(props);
+  if (!page.id || !date) {
+    return null;
+  }
+
+  return {
+    id: page.id,
+    title: extractTitleFromProperties(props),
+    date,
+  };
+}
+
+export async function getCalendarPageById(pageId: string): Promise<{id: string; title: string; date: string} | null> {
+  const n = getNotion();
+  const page = await (n as any).request({
+    path: `pages/${pageId}`,
+    method: 'GET',
+  });
+
+  const props = (page as any)?.properties || {};
+  const date = extractCalendarDateFromProperties(props);
+  if (!page?.id || !date) {
+    return null;
+  }
+
+  return {
+    id: page.id,
+    title: extractTitleFromProperties(props),
+    date,
+  };
 }
 
 export async function buildPartsMap(): Promise<Record<string, string>> {
@@ -281,17 +339,45 @@ export async function buildPartsMap(): Promise<Record<string, string>> {
   }
 }
 
-export async function findNestedDatabases(pageId: string, targetTitle: string = '作業内容'): Promise<string[]> {
+export async function findNestedDatabasesWithSource(
+  pageId: string,
+  targetTitle: string = '作業内容',
+): Promise<{ids: string[]; source: NestedDatabaseLookupSource}> {
   const ttlMs = Math.max(NESTED_DATABASE_CACHE_TTL_SEC, 0) * 1000;
   const cacheKey = getNestedDatabasesCacheKey(pageId, targetTitle);
-  const cached = nestedDatabasesMemoryCache.get(cacheKey);
+  let cached: { fetchedAt: number; ids: string[] } | undefined;
+
+  try {
+    cached = nestedDatabasesMemoryCache.get(cacheKey);
+  } catch (error) {
+    console.warn(
+      `[notion] nested database cache failure for page ${pageId} / ${targetTitle}:`,
+      error,
+    );
+  }
+
   if (ttlMs > 0 && cached && isFresh(cached.fetchedAt, ttlMs)) {
-    return cached.ids;
+    if (cached.ids.length === 0) {
+      console.info(
+        `[notion] nested database lookup for page ${pageId} / ${targetTitle}: cached empty result ignored; rescanning`,
+      );
+    } else {
+      console.info(
+        `[notion] nested database lookup for page ${pageId} / ${targetTitle}: cache (${cached.ids.length} match${cached.ids.length === 1 ? '' : 'es'})`,
+      );
+      return {
+        ids: cached.ids,
+        source: 'cache',
+      };
+    }
   }
 
   const inFlight = nestedDatabasesInFlight.get(cacheKey);
   if (inFlight) {
-    return inFlight;
+    return {
+      ids: await inFlight,
+      source: 'fresh',
+    };
   }
 
   const n = getNotion();
@@ -329,7 +415,7 @@ export async function findNestedDatabases(pageId: string, targetTitle: string = 
 
     await _recursiveFind(pageId);
 
-    if (ttlMs > 0) {
+    if (ttlMs > 0 && found.length > 0) {
       nestedDatabasesMemoryCache.set(cacheKey, {
         fetchedAt: Date.now(),
         ids: found,
@@ -343,10 +429,63 @@ export async function findNestedDatabases(pageId: string, targetTitle: string = 
 
   nestedDatabasesInFlight.set(cacheKey, requestPromise);
   try {
-    return await requestPromise;
+    const ids = await requestPromise;
+    console.info(
+      `[notion] nested database lookup for page ${pageId} / ${targetTitle}: fresh (${ids.length} match${ids.length === 1 ? '' : 'es'})`,
+    );
+    return {
+      ids,
+      source: 'fresh',
+    };
   } finally {
     nestedDatabasesInFlight.delete(cacheKey);
   }
+}
+
+export async function findNestedDatabases(pageId: string, targetTitle: string = '作業内容'): Promise<string[]> {
+  const result = await findNestedDatabasesWithSource(pageId, targetTitle);
+  return result.ids;
+}
+
+export async function listChildDatabases(pageId: string, recursive: boolean = true): Promise<Array<{id: string; title: string}>> {
+  const n = getNotion();
+  const found: Array<{id: string; title: string}> = [];
+
+  async function walk(parentId: string) {
+    let cursor: string | undefined = undefined;
+    while (true) {
+      const response: any = await (n as any).request({
+        path: `blocks/${parentId}/children`,
+        method: 'GET',
+        query: {
+          page_size: 100,
+          start_cursor: cursor || undefined,
+        },
+      });
+
+      for (const block of response.results || []) {
+        if (block?.type === 'child_database') {
+          found.push({
+            id: block.id,
+            title: block.child_database?.title || '',
+          });
+          continue;
+        }
+
+        if (recursive && block?.has_children) {
+          await walk(block.id);
+        }
+      }
+
+      if (!response.has_more) {
+        break;
+      }
+      cursor = response.next_cursor || undefined;
+    }
+  }
+
+  await walk(pageId);
+  return found;
 }
 
 export async function updatePageProperties(pageId: string, properties: any) {
@@ -364,6 +503,14 @@ export async function archivePage(pageId: string) {
     path: `pages/${pageId}`,
     method: 'PATCH',
     body: { archived: true }
+  });
+}
+
+export async function retrieveDatabase(databaseId: string) {
+  const n = getNotion();
+  return (n as any).request({
+    path: `databases/${databaseId}`,
+    method: 'GET',
   });
 }
 
