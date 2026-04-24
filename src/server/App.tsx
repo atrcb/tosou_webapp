@@ -8,6 +8,7 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Box,
   Calendar,
   Check,
   ChevronRight,
@@ -36,7 +37,14 @@ declare global {
   }
 }
 
-type View = 'home' | 'workflow-manager' | 'daily-generator' | 'defective-parts' | 'hirahara-orders' | 'settings';
+type View =
+  | 'home'
+  | 'workflow-manager'
+  | 'daily-generator'
+  | 'product-viewer'
+  | 'defective-parts'
+  | 'hirahara-orders'
+  | 'settings';
 type Theme = 'light' | 'dark';
 type Language = 'en' | 'ja';
 type ReviewCategory = 'all' | 'part' | 'color' | 'trial' | 'date';
@@ -152,10 +160,13 @@ const VIEW_LABELS: Record<View, LocalizedText> = {
   home: text('Home', 'ホーム'),
   'workflow-manager': text('Workflow', 'ワークフロー'),
   'daily-generator': text('Daily Generator', '日次生成'),
+  'product-viewer': text('Product Viewer', '製品ビューア'),
   'defective-parts': text('Defective Parts Tracker', '欠品入力'),
   'hirahara-orders': text('Hirahara Orders', 'ヒラハラ注文書'),
   settings: text('Settings', '設定'),
 };
+
+const ProductViewer = React.lazy(() => import('./ProductViewer.tsx'));
 
 const isAppleMobileDevice = (): boolean => {
   if (typeof navigator === 'undefined') return false;
@@ -1968,8 +1979,8 @@ export default function App() {
     : 'max-w-xl text-base text-[var(--text-secondary)] md:text-lg';
   const shellPaddingClass = embedMode ? 'px-2.5 pb-5 pt-3 md:px-3' : 'px-3 pb-8 pt-4 md:px-5 lg:px-6';
   const shellHeaderClass = embedMode
-    ? 'glass-toolbar sticky top-3 z-20 flex items-center justify-between rounded-[22px] px-3 py-2.5 md:px-4'
-    : 'glass-toolbar sticky top-4 z-20 flex items-center justify-between rounded-[26px] px-4 py-3 md:px-5';
+    ? 'glass-toolbar sticky top-3 z-20 flex items-center justify-between gap-3 rounded-[22px] px-3 py-2.5 md:px-4'
+    : 'glass-toolbar sticky top-4 z-20 flex items-center justify-between gap-3 rounded-[26px] px-4 py-3 md:px-5';
   const shellInnerWidthClass = embedMode ? 'mx-auto max-w-[980px]' : 'mx-auto max-w-[1200px]';
   const shellZoomPaddingStyle: React.CSSProperties | undefined =
     pageZoom !== 1
@@ -2070,8 +2081,8 @@ export default function App() {
       : trackerFieldCardClass;
   const trackerFieldInputClass =
     theme === 'dark'
-      ? 'mt-2 w-full rounded-[18px] border border-white/10 bg-white/6 px-4 py-3 text-sm font-medium leading-[1.25] text-[var(--text-primary)] outline-none transition placeholder:text-slate-500 focus:border-sky-300 focus:bg-white/10'
-      : 'mt-2 w-full rounded-[18px] border border-slate-300 bg-slate-50/92 px-4 py-3 text-sm font-medium leading-[1.25] text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(148,163,184,0.12)] outline-none transition placeholder:text-slate-500 focus:border-sky-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(125,211,252,0.18),0_12px_24px_rgba(148,163,184,0.18)]';
+      ? 'mt-2 w-full rounded-[18px] border border-white/10 bg-white/6 px-4 py-3.5 text-base font-medium leading-[1.25] text-[var(--text-primary)] outline-none transition placeholder:text-slate-500 focus:border-sky-300 focus:bg-white/10 touch-manipulation'
+      : 'mt-2 w-full rounded-[18px] border border-slate-300 bg-slate-50/92 px-4 py-3.5 text-base font-medium leading-[1.25] text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_6px_14px_rgba(148,163,184,0.12)] outline-none transition placeholder:text-slate-500 focus:border-sky-400 focus:bg-white focus:shadow-[0_0_0_4px_rgba(125,211,252,0.18),0_12px_24px_rgba(148,163,184,0.18)] touch-manipulation';
   const trackerFieldHintClass =
     theme === 'dark'
       ? 'mt-3 text-xs text-[var(--text-secondary)]'
@@ -2095,27 +2106,27 @@ export default function App() {
   const getTrackerChoiceButtonClass = (selected: boolean) =>
     selected
       ? theme === 'dark'
-        ? 'inline-flex items-center gap-3 rounded-[22px] border border-sky-400/60 bg-sky-500/14 px-4 py-3 text-left text-sm font-semibold text-sky-100 shadow-[0_14px_30px_rgba(14,165,233,0.16)] transition'
-        : 'inline-flex items-center gap-3 rounded-[22px] border border-sky-300 bg-sky-50 px-4 py-3 text-left text-sm font-semibold text-sky-900 shadow-[0_14px_30px_rgba(56,189,248,0.16)] transition'
+        ? 'flex items-center gap-3 rounded-[22px] border border-sky-400/60 bg-sky-500/14 px-4 py-4 text-left text-sm font-semibold text-sky-100 shadow-[0_14px_30px_rgba(14,165,233,0.16)] transition touch-manipulation active:scale-[0.97]'
+        : 'flex items-center gap-3 rounded-[22px] border border-sky-300 bg-sky-50 px-4 py-4 text-left text-sm font-semibold text-sky-900 shadow-[0_14px_30px_rgba(56,189,248,0.16)] transition touch-manipulation active:scale-[0.97]'
       : theme === 'dark'
-        ? 'inline-flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
-        : 'inline-flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/85 px-4 py-3 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+        ? 'flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06] touch-manipulation active:scale-[0.97]'
+        : 'flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-white/85 px-4 py-4 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white touch-manipulation active:scale-[0.97]';
   const getTrackerCompactChoiceButtonClass = (selected: boolean) =>
     selected
       ? theme === 'dark'
-        ? 'inline-flex items-center gap-2.5 rounded-[18px] border border-sky-400/60 bg-sky-500/14 px-3.5 py-2.5 text-left text-sm font-semibold text-sky-100 shadow-[0_12px_24px_rgba(14,165,233,0.14)] transition'
-        : 'inline-flex items-center gap-2.5 rounded-[18px] border border-sky-300 bg-sky-50 px-3.5 py-2.5 text-left text-sm font-semibold text-sky-900 shadow-[0_12px_24px_rgba(56,189,248,0.14)] transition'
+        ? 'flex items-center gap-2.5 rounded-[18px] border border-sky-400/60 bg-sky-500/14 px-3.5 py-3 text-left text-sm font-semibold text-sky-100 shadow-[0_12px_24px_rgba(14,165,233,0.14)] transition touch-manipulation active:scale-[0.97]'
+        : 'flex items-center gap-2.5 rounded-[18px] border border-sky-300 bg-sky-50 px-3.5 py-3 text-left text-sm font-semibold text-sky-900 shadow-[0_12px_24px_rgba(56,189,248,0.14)] transition touch-manipulation active:scale-[0.97]'
       : theme === 'dark'
-        ? 'inline-flex items-center gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.03] px-3.5 py-2.5 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
-        : 'inline-flex items-center gap-2.5 rounded-[18px] border border-slate-200/90 bg-white/88 px-3.5 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+        ? 'flex items-center gap-2.5 rounded-[18px] border border-white/10 bg-white/[0.03] px-3.5 py-3 text-left text-sm font-medium text-slate-200 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06] touch-manipulation active:scale-[0.97]'
+        : 'flex items-center gap-2.5 rounded-[18px] border border-slate-200/90 bg-white/88 px-3.5 py-3 text-left text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white touch-manipulation active:scale-[0.97]';
   const getTrackerPartCardClass = (selected: boolean) =>
     selected
       ? theme === 'dark'
-        ? 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-emerald-400/50 bg-emerald-500/12 px-4 py-4 text-left shadow-[0_18px_36px_rgba(16,185,129,0.16)] transition'
-        : 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-emerald-300 bg-emerald-50 px-4 py-4 text-left shadow-[0_18px_36px_rgba(16,185,129,0.14)] transition'
+        ? 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-emerald-400/50 bg-emerald-500/12 px-4 py-5 text-left shadow-[0_18px_36px_rgba(16,185,129,0.16)] transition touch-manipulation active:scale-[0.98]'
+        : 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-emerald-300 bg-emerald-50 px-4 py-5 text-left shadow-[0_18px_36px_rgba(16,185,129,0.14)] transition touch-manipulation active:scale-[0.98]'
       : theme === 'dark'
-        ? 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06]'
-        : 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-slate-200/90 bg-white/90 px-4 py-4 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white';
+        ? 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-white/10 bg-white/[0.03] px-4 py-5 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.06] touch-manipulation active:scale-[0.98]'
+        : 'flex w-full items-start justify-between gap-3 rounded-[24px] border border-slate-200/90 bg-white/90 px-4 py-5 text-left transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white touch-manipulation active:scale-[0.98]';
   const trackerPartTrialBadgeClass =
     theme === 'dark'
       ? 'inline-flex w-fit items-center rounded-full border border-amber-500/40 bg-amber-500/18 px-2.5 py-1 text-[11px] font-semibold tracking-[0.06em] text-amber-50'
@@ -2142,18 +2153,18 @@ export default function App() {
       : 'text-sm text-slate-600';
   const trackerStepperShellClass =
     theme === 'dark'
-      ? 'mt-3 flex items-center gap-2 rounded-[20px] border border-white/10 bg-white/[0.04] p-2'
-      : 'mt-3 flex items-center gap-2 rounded-[20px] border border-slate-200/90 bg-slate-50/85 p-2';
+      ? 'mt-3 flex items-center gap-3 rounded-[22px] border border-white/10 bg-white/[0.04] p-2.5'
+      : 'mt-3 flex items-center gap-3 rounded-[22px] border border-slate-200/90 bg-slate-50/85 p-2.5';
   const trackerStepperInputClass =
-    'min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-center text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)] outline-none placeholder:text-slate-400';
+    'min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-center text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)] outline-none placeholder:text-slate-400 touch-manipulation';
   const getTrackerStepperButtonClass = (disabled: boolean) =>
     disabled
       ? theme === 'dark'
-        ? 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-white/8 bg-white/[0.02] text-slate-500 opacity-45'
-        : 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-slate-200/80 bg-white/70 text-slate-300 opacity-45'
+        ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/8 bg-white/[0.02] text-slate-500 opacity-45'
+        : 'flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-slate-200/80 bg-white/70 text-slate-300 opacity-45'
       : theme === 'dark'
-        ? 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-white/10 bg-white/[0.06] text-slate-100 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12]'
-        : 'flex h-11 w-11 items-center justify-center rounded-[16px] border border-slate-200/90 bg-white text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50';
+        ? 'flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.06] text-slate-100 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.12] touch-manipulation active:scale-95'
+        : 'flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-slate-200/90 bg-white text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 touch-manipulation active:scale-95';
   const cacheSummaryCards = [
     {
       label: tr('Parts', '部品'),
@@ -2187,6 +2198,15 @@ export default function App() {
       label: tr('Daily', '日次生成'),
       subtitle: tr('Generate today’s plan', '当日の計画を生成'),
       onClick: () => navigateTo('daily-generator'),
+    },
+    {
+      key: 'product-viewer',
+      icon: Box,
+      accent: 'slate' as LauncherAccent,
+      card: true,
+      label: tr('Product Viewer', '製品ビューア'),
+      subtitle: tr('Assembled and exploded views', '組立・分解ビュー'),
+      onClick: () => navigateTo('product-viewer'),
     },
     {
       key: 'defective-parts',
@@ -3270,7 +3290,7 @@ export default function App() {
                 type="button"
                 onClick={() => void loadDefectiveTrackerSnapshot({pageId: defectiveTrackerPageId || defectiveTrackerCalendar?.id})}
                 disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
-                className="secondary-button w-fit"
+                className="secondary-button w-fit touch-manipulation"
               >
                 <RefreshCw size={16} className={defectiveTrackerLoading ? 'animate-spin' : ''} />
                 {tr('Refresh', '再読み込み')}
@@ -3469,7 +3489,7 @@ export default function App() {
                           : tr('Waiting for color', '色を選択してください')}
                       </span>
                     </div>
-                    <div className="mt-4 flex flex-wrap gap-3">
+                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
                       {defectiveTrackerColorOptions.map((color) => {
                         const isSelected = color === defectiveTrackerSelectedColor;
                         const partCount = defectiveTrackerColorPartMap[color]?.length ?? 0;
@@ -3693,7 +3713,7 @@ export default function App() {
                       </span>
                     </div>
                     {defectiveTrackerTypes.length ? (
-                      <div className="mt-3 flex flex-wrap gap-2.5">
+                      <div className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-3">
                         {defectiveTrackerTypes.map((option) => {
                           const isSelected = option === defectiveTrackerSelectedType;
                           return (
@@ -3730,7 +3750,7 @@ export default function App() {
 
       <div className={actionBarClass}>
         <div className={actionToolbarClass}>
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3 xl:flex-1">
               <div>
                 <div>
@@ -3743,9 +3763,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2.5">
+              <div className="-mx-1 flex gap-2.5 overflow-x-auto pb-1 scrollbar-none md:flex-wrap md:overflow-x-visible md:pb-0">
                 {defectiveTrackerFloatingSummary.map((item) => (
-                  <div key={`${item.label}-${item.value}`} className={trackerActionChipClass}>
+                  <div key={`${item.label}-${item.value}`} className={`${trackerActionChipClass} shrink-0`}>
                     <p className={trackerActionChipLabelClass}>{item.label}</p>
                     <p className={trackerActionChipValueClass}>{item.value}</p>
                   </div>
@@ -3782,7 +3802,7 @@ export default function App() {
               <button
                 onClick={handleDefectiveTrackerSubmit}
                 disabled={defectiveTrackerSubmitDisabled}
-                className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none md:w-auto md:min-w-[240px]"
+                className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none touch-manipulation active:scale-[0.97] md:w-auto md:min-w-[260px]"
               >
                 {defectiveTrackerSubmitting ? <RefreshCw size={18} className="animate-spin" /> : <Check size={18} />}
                 {tr('Save defective part', '欠品を登録')}
@@ -4039,6 +4059,24 @@ export default function App() {
     </div>
   );
 
+  const ProductViewerView = () => (
+    <div className={pageStackClass}>
+      <BackButton label={tr('Back', '戻る')} onClick={goBack} />
+      <React.Suspense
+        fallback={
+          <Panel className="p-6 md:p-8">
+            <div className="flex items-center gap-3 text-sm font-medium text-[var(--text-secondary)]">
+              <RefreshCw size={16} className="animate-spin" />
+              {tr('Loading product viewer...', '製品ビューアを読み込み中...')}
+            </div>
+          </Panel>
+        }
+      >
+        <ProductViewer language={language} reducedMotion={reducedMotion} />
+      </React.Suspense>
+    </div>
+  );
+
   const SettingsView = () => (
     <div className={pageStackClass}>
       <div className="space-y-3">
@@ -4121,21 +4159,21 @@ export default function App() {
           <div className={shellPaddingClass} style={shellZoomPaddingStyle}>
             <div className={shellInnerWidthClass} style={shellZoomInnerWidthStyle}>
                 <header className={shellHeaderClass}>
-                  <div className="flex items-center gap-3 md:gap-4">
+                  <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-4">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
-                        <span>{tr('Painting Team', '塗装チーム')}</span>
-                        <ChevronRight size={14} />
+                        <span className="min-w-0 truncate">{tr('Painting Team', '塗装チーム')}</span>
+                        <ChevronRight size={14} className="shrink-0" />
                         <span className="truncate text-[var(--text-primary)]">{localize(VIEW_LABELS[view])}</span>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <div className="hidden items-center gap-2 rounded-full border border-[color:var(--line)] bg-white/55 px-3 py-1.5 text-sm text-[var(--text-secondary)] dark:bg-white/5 md:flex">
                     <span className={`h-2 w-2 rounded-full ${isBusy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                     {localize(status)}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="hidden items-center gap-2 md:flex">
                     <button
                       onClick={() => setPageZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
                       className="icon-button"
@@ -4190,6 +4228,7 @@ export default function App() {
                       {view === 'home' && HomeView()}
                       {view === 'workflow-manager' && workflowManagerView}
                       {view === 'daily-generator' && DailyGeneratorView()}
+                      {view === 'product-viewer' && ProductViewerView()}
                       {view === 'defective-parts' && DefectivePartsView()}
                       {view === 'hirahara-orders' && HiraharaOrdersView()}
                       {view === 'settings' && SettingsView()}

@@ -358,3 +358,11 @@ html.dark .launcher-badge {
   background: rgba(148, 163, 184, 0.4);
   background-clip: padding-box;
 }
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
