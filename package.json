@@ -13,6 +13,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
+    "cad:windows-worker": "node tools/windows-cad-converter/server.mjs",
+    "cad:build-edrawings-exporter": "powershell -ExecutionPolicy Bypass -File tools/windows-cad-converter/build-edrawings-exporter.ps1",
     "lint": "tsc --noEmit",
     "server": "tsx server.ts",
     "start": "tsx server.ts"
@@ -30,8 +32,10 @@
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "multer": "^2.1.1",
+    "occt-import-js": "^0.0.23",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "^0.184.0",
     "tsx": "^4.21.0",
     "vite": "^6.2.0",
     "xlsx": "^0.18.5"
@@ -39,7 +43,9 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/three": "^0.184.0",
     "autoprefixer": "^10.4.21",
+    "playwright-core": "^1.59.1",
     "tailwindcss": "^4.1.14",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
