@@ -26,3 +26,11 @@ services:
         sync: false
       - key: STARTUP_CACHE_WARMUP
         value: "1"
+      - key: MODEL_CONVERTER_COMMAND
+        value: node scripts/convert-via-windows-service.mjs --input {input} --input-dir {inputDir} --output {output} --root-name {original}
+      - key: MODEL_CONVERTER_TIMEOUT_MS
+        value: "900000"
+      - key: WINDOWS_CONVERTER_URL
+        sync: false
+      - key: WINDOWS_CONVERTER_TOKEN
+        sync: false

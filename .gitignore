@@ -4,5 +4,10 @@ dist/
 coverage/
 .DS_Store
 *.log
+*.pyc
+__pycache__/
 .env*
 !.env.example
+tools/windows-cad-converter/work/
+tools/windows-cad-converter/edrawings-stl-exporter/bin/
+tools/windows-cad-converter/edrawings-stl-exporter/obj/

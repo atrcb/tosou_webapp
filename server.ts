@@ -5,6 +5,8 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import multer from 'multer';
 import crypto from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import * as dailyWorkflow from './src/server/dailyWorkflow.js';
 import * as defectiveParts from './src/server/defectiveParts.js';
 import * as hiraharaOrders from './src/server/hiraharaOrders.js';
@@ -12,6 +14,8 @@ import * as notion from './src/server/notion.js';
 import * as workflow from './src/server/workflow.js';
 
 dotenv.config();
+
+const execFileAsync = promisify(execFile);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,8 +56,12 @@ const EMBED_SESSION_RATE_LIMIT_WINDOW_SEC = Number.parseInt(
 const EMBED_API_RATE_LIMIT_MAX = Number.parseInt(process.env.EMBED_API_RATE_LIMIT_MAX || '120', 10);
 const EMBED_API_RATE_LIMIT_WINDOW_SEC = Number.parseInt(process.env.EMBED_API_RATE_LIMIT_WINDOW_SEC || '60', 10);
 const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join('/tmp', 'notion-backend-uploads');
+const MODEL_CONVERSION_DIR = process.env.MODEL_CONVERSION_DIR || path.join(UPLOAD_DIR, 'model-conversions');
+const MODEL_CONVERTER_COMMAND = process.env.MODEL_CONVERTER_COMMAND || '';
+const MODEL_CONVERTER_TIMEOUT_MS = Number.parseInt(process.env.MODEL_CONVERTER_TIMEOUT_MS || '300000', 10);
 const STARTUP_CACHE_WARMUP_ENABLED = (process.env.STARTUP_CACHE_WARMUP || '1').trim() !== '0';
 const FALLBACK_WORKBOOK_NAME = 'workbook.xlsx';
+const FALLBACK_MODEL_NAME = 'model';
 const INVALID_FILENAME_CHARS_RE = /[\u0000-\u001f\u007f<>:"/\\|?*]/g;
 const FILENAME_CONTROL_RE = /[\u0000-\u001f\u007f]/g;
 const FILENAME_MOJIBAKE_RE = /[\u0080-\u009f]|(?:Ã.|Â.|ã.|æ.|å.|ç.|Ð.|Ñ.)/;
@@ -87,6 +95,8 @@ const CP1252_UNICODE_TO_BYTE = new Map<number, number>([
   [0x017e, 0x9e],
   [0x0178, 0x9f],
 ]);
+const CAD_MODEL_CONVERSION_EXTENSIONS = new Set(['easm', 'eprt', 'sldprt', 'sldasm']);
+const MODEL_CONVERSION_OUTPUT_EXTENSION = '.glb';
 
 const formatWarmupError = (error: unknown): string => {
   if (error instanceof Error && error.message) {
@@ -457,6 +467,163 @@ const getStoredWorkbookExtension = (filename: string): string => {
 const createStoredWorkbookKey = (filename: string): string =>
   `workbook-${crypto.randomUUID()}${getStoredWorkbookExtension(filename)}`;
 
+const sanitizeModelFilename = (value: string, fallback = FALLBACK_MODEL_NAME): string => {
+  const decoded = decodeMultipartFilename(value).normalize('NFC');
+  const withoutPath = stripDirectorySegments(decoded);
+  const cleaned = withoutPath.replace(INVALID_FILENAME_CHARS_RE, '_').replace(/\s+/g, ' ').trim().replace(/^\.+/, '');
+
+  if (!cleaned) {
+    return fallback;
+  }
+
+  const ext = path.extname(cleaned);
+  const stem = (ext ? cleaned.slice(0, -ext.length) : cleaned).trim() || fallback;
+  const safeExt = ext && /^[.A-Za-z0-9_]+$/.test(ext) ? ext.toLowerCase() : '';
+  return `${stem}${safeExt}`;
+};
+
+const stripModelExtension = (filename: string): string => {
+  const ext = path.extname(filename);
+  return (ext ? filename.slice(0, -ext.length) : filename).trim() || FALLBACK_MODEL_NAME;
+};
+
+const getModelExtension = (filename: string): string =>
+  path.extname(filename).replace(/^\./, '').toLowerCase();
+
+const parseCommandLine = (command: string): string[] => {
+  const parts: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  let escaping = false;
+
+  for (const char of command.trim()) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+
+    if (char === '\\' && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+
+    if ((char === '"' || char === "'") && (!quote || quote === char)) {
+      quote = quote ? null : char;
+      continue;
+    }
+
+    if (!quote && /\s/.test(char)) {
+      if (current) {
+        parts.push(current);
+        current = '';
+      }
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current) {
+    parts.push(current);
+  }
+
+  return parts;
+};
+
+const replaceModelConverterPlaceholders = (
+  value: string,
+  replacements: Record<string, string>,
+): string =>
+  Object.entries(replacements).reduce(
+    (result, [key, replacement]) => result.replaceAll(`{${key}}`, replacement),
+    value,
+  );
+
+const resolveProjectRelativeCommandPath = (value: string): string => {
+  if (!value || path.isAbsolute(value)) {
+    return value;
+  }
+
+  if (value.startsWith('.')) {
+    return path.resolve(__dirname, value);
+  }
+
+  return value;
+};
+
+const runModelConverter = async ({
+  extension,
+  inputDir,
+  inputPath,
+  originalName,
+  outputDir,
+  outputPath,
+  workDir,
+}: {
+  extension: string;
+  inputDir: string;
+  inputPath: string;
+  originalName: string;
+  outputDir: string;
+  outputPath: string;
+  workDir: string;
+}) => {
+  const commandParts = parseCommandLine(MODEL_CONVERTER_COMMAND);
+  if (!commandParts.length) {
+    throw new Error(
+      'Server-side CAD conversion is not configured. Set MODEL_CONVERTER_COMMAND to a converter that writes GLB output.',
+    );
+  }
+
+  const replacements = {
+    basename: stripModelExtension(path.basename(inputPath)),
+    extension,
+    input: inputPath,
+    inputDir,
+    original: originalName,
+    output: outputPath,
+    outputDir,
+  };
+  const [executableTemplate, ...argsTemplate] = commandParts;
+  const executable = resolveProjectRelativeCommandPath(
+    replaceModelConverterPlaceholders(executableTemplate, replacements),
+  );
+  const args = argsTemplate.map((arg) =>
+    resolveProjectRelativeCommandPath(replaceModelConverterPlaceholders(arg, replacements)),
+  );
+  const timeout = Number.isFinite(MODEL_CONVERTER_TIMEOUT_MS)
+    ? Math.max(5000, Math.min(MODEL_CONVERTER_TIMEOUT_MS, 900000))
+    : 300000;
+
+  try {
+    await execFileAsync(executable, args, {
+      cwd: workDir,
+      maxBuffer: 10 * 1024 * 1024,
+      timeout,
+    });
+  } catch (error: any) {
+    const detail = String(error?.stderr || error?.stdout || error?.message || '').trim();
+    throw new Error(`Model converter failed${detail ? `: ${detail}` : '.'}`);
+  }
+};
+
+const removeTemporaryUploadFiles = async (files: Express.Multer.File[]): Promise<void> => {
+  await Promise.allSettled(files.map((file) => fs.promises.unlink(file.path)));
+};
+
+const findModelRootUpload = (
+  files: Express.Multer.File[],
+  requestedRootFileName: string,
+): Express.Multer.File | null => {
+  const normalizedRequested = sanitizeModelFilename(requestedRootFileName || '').toLowerCase();
+  return (
+    files.find((file) => sanitizeModelFilename(file.originalname || '').toLowerCase() === normalizedRequested) ??
+    files.find((file) => CAD_MODEL_CONVERSION_EXTENSIONS.has(getModelExtension(file.originalname || ''))) ??
+    null
+  );
+};
+
 const getUploadedWorkbookInfo = (file: Express.Multer.File): {displayName: string; storageKey: string} => {
   const displayName = sanitizeWorkbookFilename(file.originalname || '');
   return {
@@ -631,6 +798,123 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
   const workbook = getUploadedWorkbookInfo(req.file);
   res.json({ filename: workbook.displayName, fileKey: workbook.storageKey });
+});
+
+const handleModelConvert = async (
+  files: Express.Multer.File[] | undefined,
+  body: any,
+  res: express.Response,
+) => {
+  const modelFiles = files ?? [];
+  if (!modelFiles.length) {
+    return res.status(400).json({error: 'No model files uploaded'});
+  }
+
+  const requestedRootFileName = readQueryStringValue(body?.rootFileName);
+  const rootFile = findModelRootUpload(modelFiles, requestedRootFileName);
+  if (!rootFile) {
+    await removeTemporaryUploadFiles(modelFiles);
+    return res.status(400).json({error: 'No EASM, EPRT, SLDPRT, or SLDASM root file was uploaded'});
+  }
+
+  const rootDisplayName = sanitizeModelFilename(rootFile.originalname || rootFile.filename || FALLBACK_MODEL_NAME);
+  const rootExtension = getModelExtension(rootDisplayName);
+  if (!CAD_MODEL_CONVERSION_EXTENSIONS.has(rootExtension)) {
+    await removeTemporaryUploadFiles(modelFiles);
+    return res.status(400).json({error: `${rootDisplayName} does not need server-side conversion`});
+  }
+
+  const jobId = crypto.randomUUID();
+  const workDir = path.join(MODEL_CONVERSION_DIR, jobId);
+  const inputDir = path.join(workDir, 'input');
+  const outputDir = path.join(workDir, 'output');
+  const outputName = `${stripModelExtension(rootDisplayName)}${MODEL_CONVERSION_OUTPUT_EXTENSION}`;
+  const outputPath = path.join(outputDir, outputName);
+
+  try {
+    await fs.promises.mkdir(inputDir, {recursive: true});
+    await fs.promises.mkdir(outputDir, {recursive: true});
+
+    const usedNames = new Set<string>();
+    let rootInputPath = '';
+    for (const file of modelFiles) {
+      const originalName = sanitizeModelFilename(file.originalname || file.filename || FALLBACK_MODEL_NAME);
+      const ext = path.extname(originalName);
+      const stem = stripModelExtension(originalName);
+      let safeName = originalName;
+      let duplicateIndex = 2;
+      while (usedNames.has(safeName.toLowerCase())) {
+        safeName = `${stem}-${duplicateIndex}${ext}`;
+        duplicateIndex += 1;
+      }
+      usedNames.add(safeName.toLowerCase());
+
+      const destination = path.join(inputDir, safeName);
+      await fs.promises.copyFile(file.path, destination);
+      if (file === rootFile) {
+        rootInputPath = destination;
+      }
+    }
+
+    await runModelConverter({
+      extension: rootExtension,
+      inputDir,
+      inputPath: rootInputPath,
+      originalName: rootDisplayName,
+      outputDir,
+      outputPath,
+      workDir,
+    });
+
+    const convertedStat = await fs.promises.stat(outputPath);
+    if (!convertedStat.isFile() || convertedStat.size <= 0) {
+      throw new Error('Model converter did not produce a readable GLB file.');
+    }
+
+    return res.json({
+      convertedFrom: rootDisplayName,
+      modelUrl: `/api/models/converted/${encodeURIComponent(jobId)}/${encodeURIComponent(outputName)}`,
+      name: outputName,
+      rootFileName: outputName,
+    });
+  } finally {
+    await removeTemporaryUploadFiles(modelFiles);
+  }
+};
+
+app.post('/api/models/convert', upload.array('files', 64), async (req, res) => {
+  try {
+    await handleModelConvert(req.files as Express.Multer.File[] | undefined, req.body, res);
+  } catch (error: any) {
+    const message = error?.message || 'Model conversion failed';
+    const status = message.includes('not configured') ? 501 : message.includes('(422)') ? 422 : 500;
+    res.status(status).json({error: message});
+  }
+});
+
+app.get('/api/models/converted/:jobId/:filename', async (req, res) => {
+  const jobId = String(req.params.jobId || '');
+  if (!/^[0-9a-f-]{36}$/i.test(jobId)) {
+    return res.status(404).json({error: 'Converted model not found'});
+  }
+
+  const filename = sanitizeModelFilename(String(req.params.filename || ''));
+  const fullPath = path.join(MODEL_CONVERSION_DIR, jobId, 'output', filename);
+  const outputRoot = path.join(MODEL_CONVERSION_DIR, jobId, 'output');
+  const relativePath = path.relative(outputRoot, fullPath);
+  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+    return res.status(404).json({error: 'Converted model not found'});
+  }
+
+  try {
+    await fs.promises.access(fullPath, fs.constants.R_OK);
+  } catch {
+    return res.status(404).json({error: 'Converted model not found'});
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.type('model/gltf-binary');
+  return res.sendFile(fullPath);
 });
 
 const handleCalendar = async (res: express.Response) => {

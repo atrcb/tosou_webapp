@@ -37,6 +37,7 @@ body,
 #root {
   min-height: 100%;
   overflow-anchor: none;
+  overflow-x: hidden;
 }
 
 body {
