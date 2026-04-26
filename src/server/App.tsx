@@ -3248,504 +3248,357 @@ export default function App() {
 
   const DefectivePartsView = () => (
     <div className={pageStackClass}>
-      <div className="space-y-3">
-        <BackButton label={tr('Back', '戻る')} onClick={goBack} />
-        <div>
-          <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Defective Parts Tracker', '欠品入力')}</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-[-0.05em] md:text-5xl">
-            {tr('Create a defective-parts record from 作業内容.', '不良部品を簡単に追跡する。')}
-          </h1>
-          <p className="mt-3 max-w-2xl text-base text-[var(--text-secondary)]">
-            {tr(
-              'Pick the day page, read its nested 「作業内容」 database, then save one defect record at a time into the destination Notion database.',
-              '対象ページを選択し、ネストされた「作業内容」データベースを読み込んで、欠品レコードを 1 件ずつ登録します。',
-            )}
-          </p>
+      {/* Compact header: back + title + refresh inline */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <BackButton label={tr(‘Back’, ‘戻る’)} onClick={goBack} />
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-tertiary)]">{tr(‘Defective Parts’, ‘欠品入力’)}</p>
+            <h1 className="truncate text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
+              {defectiveTrackerCalendar?.title ?? tr(‘Record a defect’, ‘欠品を記録’)}
+            </h1>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={() => void loadDefectiveTrackerSnapshot({pageId: defectiveTrackerPageId || defectiveTrackerCalendar?.id})}
+          disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
+          className="icon-button shrink-0 touch-manipulation"
+          aria-label={tr(‘Refresh’, ‘再読み込み’)}
+        >
+          <RefreshCw size={16} className={defectiveTrackerLoading ? ‘animate-spin’ : ‘’} />
+        </button>
       </div>
 
-      <div className="space-y-6">
+      {/* Compact source strip */}
+      <Panel className="p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-medium text-[var(--text-tertiary)]">
+              {defectiveTrackerCalendar?.date
+                ? tr(`${defectiveTrackerCalendar.date}`, `${defectiveTrackerCalendar.date}`)
+                : defectiveTrackerToday ?? tr(‘Loading…’, ‘読み込み中…’)}
+            </p>
+            <p className="mt-0.5 text-sm font-semibold text-[var(--text-primary)]">
+              {defectiveTrackerCalendar
+                ? tr(‘Page loaded’, ‘ページ読み込み済み’)
+                : tr(‘Searching for today’s page…’, ‘本日のページを検索中…’)}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {defectiveTrackerColorCount > 0 && (
+              <span className={reviewSummaryPillClass}>
+                {tr(`${defectiveTrackerColorCount} colors`, `${defectiveTrackerColorCount} 色`)}
+              </span>
+            )}
+            {defectiveTrackerPartCount > 0 && (
+              <span className={reviewSummaryPillClass}>
+                {tr(`${defectiveTrackerPartCount} parts`, `${defectiveTrackerPartCount} 品番`)}
+              </span>
+            )}
+            {!defectiveTrackerDatabaseAccessible && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+                <AlertCircle size={11} />
+                {tr(‘DB’, ‘DB’)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {calendarPages.length > 0 && (
+          <select
+            value={defectiveTrackerPageId || defectiveTrackerCalendar?.id || ‘’}
+            onChange={(event) => {
+              const nextPageId = event.target.value;
+              setDefectiveTrackerPageId(nextPageId);
+              setDefectiveTrackerNotice(null);
+              setDefectiveTrackerFieldErrors({});
+              setDefectiveTrackerPartName(‘’);
+              setDefectiveTrackerQuantity(‘’);
+              void loadDefectiveTrackerSnapshot({pageId: nextPageId});
+            }}
+            disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
+            style={{fontFamily: ‘inherit’, color: ‘var(--text-primary)’, WebkitTextFillColor: ‘var(--text-primary)’}}
+            className={trackerFieldInputClass}
+          >
+            <option value="">{tr(‘Select a page’, ‘ページを選択’)}</option>
+            {calendarPages.map((page) => (
+              <option key={page.id} value={page.id}>
+                {`${page.date} · ${page.title}`}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {defectiveTrackerWarning && (
+          <div className="mt-3 rounded-[20px] border border-amber-300 bg-amber-100/90 px-4 py-3 text-xs text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50">
+            {defectiveTrackerWarning}
+          </div>
+        )}
+      </Panel>
+
+      {/* Form area */}
+      <div className="space-y-4">
+        {defectiveTrackerLoading ? (
           <Panel className="p-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Source page', '参照ページ')}</p>
-                <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
-                  {defectiveTrackerCalendar?.title ?? tr('No calendar page found', 'カレンダーページが見つかりません')}
-                </h2>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                  {defectiveTrackerCalendar?.date
-                    ? tr(
-                        `${defectiveTrackerCalendar.date} · reading the selected page’s nested 「作業内容」 database`,
-                        `${defectiveTrackerCalendar.date} ・ 選択したページ内の「作業内容」データベースを読み込み`,
-                      )
-                    : defectiveTrackerToday
-                      ? tr(
-                          `${defectiveTrackerToday} · waiting for a matching calendar page`,
-                          `${defectiveTrackerToday} ・ 対応するカレンダーページを待機中`,
-                        )
-                      : tr('Loading today’s context.', '当日の情報を読み込み中です。')}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void loadDefectiveTrackerSnapshot({pageId: defectiveTrackerPageId || defectiveTrackerCalendar?.id})}
-                disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
-                className="secondary-button w-fit touch-manipulation"
-              >
-                <RefreshCw size={16} className={defectiveTrackerLoading ? 'animate-spin' : ''} />
-                {tr('Refresh', '再読み込み')}
-              </button>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
-                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Colors', '色')}</p>
-                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
-                  {defectiveTrackerColorCount}
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
-                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Part numbers', '品番')}</p>
-                <p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[var(--text-primary)]">
-                  {defectiveTrackerPartCount}
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-[color:var(--line)] bg-white/60 p-5 dark:bg-white/4">
-                <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Source DB', '参照 DB')}</p>
-                <p className="mt-3 text-base font-medium text-[var(--text-primary)]">
-                  {defectiveTrackerNestedDatabase
-                    ? tr(
-                        defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'Loaded from cache' : 'Fresh search',
-                        defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'キャッシュから取得' : '新規検索',
-                      )
-                    : tr('Unavailable', '未取得')}
+            <div className="flex min-h-[200px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
+              <div className="space-y-3">
+                <RefreshCw size={24} className="mx-auto animate-spin text-[var(--text-tertiary)]" />
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {tr(‘Reading 作業内容…’, ‘作業内容を確認中…’)}
                 </p>
               </div>
             </div>
-
-            <div className="mt-6">
-              <p className="text-sm font-medium text-[var(--text-tertiary)]">
-                {tr('Choose a page using the same search as Workflow Manager', 'ワークフローマネージャーと同じ検索結果からページを選択')}
-              </p>
-              {calendarPages.length === 0 ? (
-                <div className="mt-3 rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-5 py-8 text-center text-sm text-[var(--text-secondary)] dark:bg-white/3">
-                  {tr('Calendar pages are loading.', 'カレンダーページを読み込み中です。')}
-                </div>
-              ) : (
-                <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
-                  <div>
-                    <select
-                      value={defectiveTrackerPageId || defectiveTrackerCalendar?.id || ''}
-                      onChange={(event) => {
-                        const nextPageId = event.target.value;
-                        setDefectiveTrackerPageId(nextPageId);
-                        setDefectiveTrackerNotice(null);
-                        setDefectiveTrackerFieldErrors({});
-                        setDefectiveTrackerPartName('');
-                        setDefectiveTrackerQuantity('');
-                        void loadDefectiveTrackerSnapshot({pageId: nextPageId});
-                      }}
-                      disabled={defectiveTrackerLoading || defectiveTrackerSubmitting}
-                      style={{
-                        fontFamily: 'inherit',
-                        color: 'var(--text-primary)',
-                        WebkitTextFillColor: 'var(--text-primary)',
-                      }}
-                      className={trackerFieldInputClass}
-                    >
-                      <option value="">{tr('Select a page', 'ページを選択')}</option>
-                      {calendarPages.map((page) => (
-                        <option key={page.id} value={page.id}>
-                          {`${page.date} · ${page.title}`}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="rounded-[20px] border border-[color:var(--line)] bg-white/45 px-4 py-3 text-sm text-[var(--text-secondary)] dark:bg-white/4">
-                    <p className="font-medium text-[var(--text-primary)]">
-                      {tr('Default target', '既定の対象')}
-                    </p>
-                    <p className="mt-1">
-                      {defectiveTrackerToday
-                        ? tr(`Today is ${defectiveTrackerToday}.`, `本日は ${defectiveTrackerToday} です。`)
-                        : tr('Loading today.', '本日を読み込み中です。')}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-5 flex flex-wrap gap-2">
-              <span className={reviewSummaryPillClass}>
-                {defectiveTrackerFormReady ? tr('Ready to save', '登録できます') : tr('Editing', '入力中')}
-              </span>
-              <span className={reviewSummaryPillClass}>
-                {defectiveTrackerDatabaseAccessible
-                  ? tr('Database connected', 'DB 接続済み')
-                  : tr('Database share needed', 'DB 共有が必要')}
-              </span>
-              {defectiveTrackerNestedDatabase && (
-                <span className={reviewSummaryPillClass}>
+          </Panel>
+        ) : defectiveTrackerColorOptions.length === 0 ? (
+          <Panel className="p-6">
+            <div className="flex min-h-[200px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
+              <div className="max-w-sm space-y-3">
+                <AlertCircle size={24} className="mx-auto text-[var(--text-tertiary)]" />
+                <h3 className="text-lg font-semibold tracking-[-0.03em]">
+                  {tr(‘No source rows found’, ‘参照行が見つかりません’)}
+                </h3>
+                <p className="text-sm text-[var(--text-secondary)]">
                   {tr(
-                    defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'Cached source' : 'Fresh source',
-                    defectiveTrackerNestedDatabase.discoverySource === 'cache' ? 'キャッシュ参照' : '新規参照',
+                    ‘Check the page has a nested 「作業内容」 database with 色 and 品番, then refresh.’,
+                    ‘「作業内容」データベースに色と品番があるか確認して再読み込みしてください。’,
                   )}
-                </span>
-              )}
+                </p>
+              </div>
             </div>
-
-            {defectiveTrackerWarning && (
-              <div className="mt-5 rounded-[24px] border border-amber-300 bg-amber-100/90 px-4 py-4 text-sm text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50">
-                {defectiveTrackerWarning}
+          </Panel>
+        ) : (
+          <>
+            {defectiveTrackerNotice && (
+              <div
+                className={`rounded-[20px] px-4 py-3 text-sm ${
+                  defectiveTrackerNotice.tone === ‘success’
+                    ? ‘border border-emerald-200 bg-emerald-50/85 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-100’
+                    : defectiveTrackerNotice.tone === ‘warning’
+                      ? ‘border border-amber-300 bg-amber-100/90 text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50’
+                      : ‘border border-rose-200 bg-rose-50/85 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/25 dark:text-rose-100’
+                }`}
+              >
+                {defectiveTrackerNotice.message}
               </div>
             )}
-          </Panel>
 
-          {defectiveTrackerLoading ? (
-            <Panel className="p-6">
-              <div className="flex min-h-[280px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
-                <div className="space-y-3">
-                  <RefreshCw size={24} className="mx-auto animate-spin text-[var(--text-tertiary)]" />
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    {tr('Scanning the selected page and nested database.', '選択したページとネストされたデータベースを確認しています。')}
-                  </p>
-                </div>
+            {/* Color selection */}
+            <div className={`${trackerSelectionPanelClass} ${defectiveTrackerFieldErrors.color ? ‘border-rose-300 dark:border-rose-500/60’ : ‘’}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className={trackerFieldLabelClass}>{tr(‘Color’, ‘色’)}</p>
+                <span className={trackerSelectionStatusClass}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${defectiveTrackerSelectedColor ? ‘bg-emerald-400’ : ‘bg-slate-300 dark:bg-slate-500’}`} />
+                  {defectiveTrackerSelectedColor
+                    ? tr(`${defectiveTrackerSelectedColor}`, `${defectiveTrackerSelectedColor}`)
+                    : tr(‘Pick a color’, ‘色を選択’)}
+                </span>
               </div>
-            </Panel>
-          ) : defectiveTrackerColorOptions.length === 0 ? (
-            <Panel className="p-6">
-              <div className="flex min-h-[280px] items-center justify-center rounded-[24px] border border-dashed border-[color:var(--line)] bg-white/36 px-6 text-center dark:bg-white/3">
-                <div className="max-w-sm space-y-3">
-                  <AlertCircle size={24} className="mx-auto text-[var(--text-tertiary)]" />
-                  <h3 className="text-xl font-semibold tracking-[-0.03em]">
-                    {tr('No usable source rows were found', '利用可能な参照行が見つかりません')}
-                  </h3>
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    {tr(
-                      'Check the selected page, make sure it contains a nested 「作業内容」 database with 色 and 品番 data, then refresh.',
-                      '選択したページに「作業内容」データベースがあり、色と品番データが入っているか確認してから再読み込みしてください。',
-                    )}
-                  </p>
-                </div>
-              </div>
-            </Panel>
-          ) : (
-            <Panel className="p-6">
-              <div className="space-y-6">
-                <div>
-                  <p className="text-sm font-medium text-[var(--text-tertiary)]">{tr('Quick form', '簡易入力フォーム')}</p>
-                  <h2 className="mt-1 text-2xl font-semibold tracking-[-0.04em]">
-                    {tr('Build one defect record', '欠品を 1 件入力')}
-                  </h2>
-                  <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                    {tr(
-                      '色 and 品番 come from the selected 「作業内容」 database. 品番 updates immediately when 色 changes.',
-                      '色と品番は選択した「作業内容」データベースから取得します。色を変更すると品番もすぐ更新されます。',
-                    )}
-                  </p>
-                </div>
-
-                {defectiveTrackerNotice && (
-                  <div
-                    className={`rounded-[24px] px-4 py-4 text-sm ${
-                      defectiveTrackerNotice.tone === 'success'
-                        ? 'border border-emerald-200 bg-emerald-50/85 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/25 dark:text-emerald-100'
-                        : defectiveTrackerNotice.tone === 'warning'
-                          ? 'border border-amber-300 bg-amber-100/90 text-amber-950 dark:border-amber-700/70 dark:bg-amber-950/55 dark:text-amber-50'
-                          : 'border border-rose-200 bg-rose-50/85 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/25 dark:text-rose-100'
-                    }`}
-                  >
-                    {defectiveTrackerNotice.message}
-                  </div>
-                )}
-
-                <div className="space-y-4">
-                  <div
-                    className={`${trackerSelectionPanelClass} ${
-                      defectiveTrackerFieldErrors.color ? 'border-rose-300 dark:border-rose-500/60' : ''
-                    }`}
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <p className={trackerFieldLabelClass}>{tr('Choose color', '色を選択')}</p>
-                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                          {tr('Match the source color group', '参照元の色グループを選択')}
-                        </h3>
-                        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                          {tr(
-                            'Selecting a color filters the parts list from today’s 作業内容 database.',
-                            '色を選択すると、本日の作業内容データベースから対象の部品だけを絞り込みます。',
-                          )}
-                        </p>
-                      </div>
-                      <span className={trackerSelectionStatusClass}>
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            defectiveTrackerSelectedColor ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-500'
-                          }`}
-                        />
-                        {defectiveTrackerSelectedColor
-                          ? tr(`${defectiveTrackerSelectedColor} selected`, `${defectiveTrackerSelectedColor} を選択中`)
-                          : tr('Waiting for color', '色を選択してください')}
-                      </span>
-                    </div>
-                    <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3">
-                      {defectiveTrackerColorOptions.map((color) => {
-                        const isSelected = color === defectiveTrackerSelectedColor;
-                        const partCount = defectiveTrackerColorPartMap[color]?.length ?? 0;
-                        return (
-                          <button
-                            key={color}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                return;
-                              }
-                              setDefectiveTrackerSelectedColor(color);
-                              setDefectiveTrackerNotice(null);
-                              clearDefectiveTrackerFieldError('color');
-                              clearDefectiveTrackerFieldError('partNumber');
-                            }}
-                            className={getTrackerChoiceButtonClass(isSelected)}
-                          >
-                            {isSelected ? <Check size={16} className="shrink-0" /> : <span className="h-2.5 w-2.5 rounded-full bg-current/60" />}
-                            <span className="font-semibold">{color}</span>
-                            <span className="rounded-full border border-current/10 px-2.5 py-1 text-[11px] font-semibold leading-none opacity-80">
-                              {partCount}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {defectiveTrackerFieldErrors.color && (
-                      <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.color}</p>
-                    )}
-                  </div>
-
-                  <div
-                    className={`${trackerSelectionPanelClass} ${
-                      defectiveTrackerFieldErrors.partNumber ? 'border-rose-300 dark:border-rose-500/60' : ''
-                    }`}
-                  >
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <p className={trackerFieldLabelClass}>{tr('Choose part', '品番を選択')}</p>
-                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                          {tr('Pick the exact part from the list', '一覧から対象の部品を選択')}
-                        </h3>
-                        <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                          {tr(
-                            'Each card below comes from the selected color group inside 作業内容.',
-                            '下のカードは、選択した色グループ内の作業内容データから取得しています。',
-                          )}
-                        </p>
-                      </div>
-                      <span className={trackerSelectionStatusClass}>
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            defectiveTrackerPartNumber ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-500'
-                          }`}
-                        />
-                        {defectiveTrackerPartNumber
-                          ? tr('Part selected', '部品を選択済み')
-                          : defectiveTrackerSelectedColor
-                            ? tr(`${defectiveTrackerSelectedPartCount} available`, `${defectiveTrackerSelectedPartCount} 件表示`)
-                            : tr('Choose color first', '先に色を選択')}
-                      </span>
-                    </div>
-
-                    {defectiveTrackerSelectedColor ? (
-                      defectiveTrackerSelectedPartCount ? (
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          {defectiveTrackerPartOptions.map((partNumber) => {
-                            const isSelected = partNumber === defectiveTrackerPartNumber;
-                            const {mainLabel, trialLabel} = splitDefectiveTrackerPartDisplay(partNumber);
-                            return (
-                              <button
-                                key={partNumber}
-                                type="button"
-                                onClick={() => {
-                                  setDefectiveTrackerPartNumber(partNumber);
-                                  setDefectiveTrackerNotice(null);
-                                  clearDefectiveTrackerFieldError('partNumber');
-                                }}
-                                className={getTrackerPartCardClass(isSelected)}
-                              >
-                                <div className="min-w-0 flex-1 pr-2">
-                                  {trialLabel && <span className={trackerPartTrialBadgeClass}>{trialLabel}</span>}
-                                  <p className={`${trackerPartTitleClass} ${trialLabel ? 'mt-3' : ''}`}>
-                                    {mainLabel || partNumber}
-                                  </p>
-                                </div>
-                                <span
-                                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] ${
-                                    isSelected
-                                      ? 'bg-emerald-500 text-white'
-                                      : theme === 'dark'
-                                        ? 'border border-white/10 bg-white/[0.05] text-slate-300'
-                                        : 'border border-slate-200/90 bg-white text-slate-500'
-                                  }`}
-                                >
-                                  {isSelected ? <Check size={16} /> : <ChevronRight size={16} />}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className={`mt-4 ${trackerSelectionHintClass}`}>
-                          {tr('No parts were found for this color group.', 'この色グループに部品が見つかりません。')}
-                        </div>
-                      )
-                    ) : (
-                      <div className={`mt-4 ${trackerSelectionHintClass}`}>
-                        {tr('Select a color first to open the parts list.', '先に色を選択すると、部品一覧が表示されます。')}
-                      </div>
-                    )}
-
-                    {defectiveTrackerFieldErrors.partNumber && (
-                      <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partNumber}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className={getTrackerFieldCardClass('partName')}>
-                    <p className={trackerFieldLabelClass}>{tr('Part name', '部品名')}</p>
-                    <input
-                      type="text"
-                      value={defectiveTrackerPartName}
-                      onChange={(event) => {
-                        setDefectiveTrackerPartName(event.target.value);
+              <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                {defectiveTrackerColorOptions.map((color) => {
+                  const isSelected = color === defectiveTrackerSelectedColor;
+                  const partCount = defectiveTrackerColorPartMap[color]?.length ?? 0;
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) return;
+                        setDefectiveTrackerSelectedColor(color);
                         setDefectiveTrackerNotice(null);
-                        clearDefectiveTrackerFieldError('partName');
+                        clearDefectiveTrackerFieldError(‘color’);
+                        clearDefectiveTrackerFieldError(‘partNumber’);
                       }}
-                      className={getTrackerFieldInputClass('partName')}
-                      placeholder={tr('Enter the part name', '部品名を入力')}
-                    />
-                    <p className={trackerFieldHintClass}>
-                      {tr(
-                        'This is the editable 部品名 field that will be written to the defects database.',
-                        'ここで入力した内容が、欠品データベースの部品名プロパティに登録されます。',
-                      )}
-                    </p>
-                    {defectiveTrackerFieldErrors.partName && (
-                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partName}</p>
-                    )}
-                  </div>
-
-                  <div className={getTrackerFieldCardClass('quantity')}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className={trackerFieldLabelClass}>{tr('Quantity', '数量')}</p>
-                        <h3 className="mt-1 text-lg font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                          {tr('Adjust with one tap', 'ワンタップで調整')}
-                        </h3>
-                      </div>
-                      <span className={trackerSelectionStatusClass}>
-                        {defectiveTrackerQuantityValue != null
-                          ? tr(`${defectiveTrackerQuantityValue} pcs`, `${defectiveTrackerQuantityValue} 個`)
-                          : tr('Set quantity', '数量を設定')}
-                      </span>
-                    </div>
-                    <div className={trackerStepperShellClass}>
-                      <button
-                        type="button"
-                        onClick={() => stepDefectiveTrackerQuantity(-1)}
-                        disabled={!defectiveTrackerCanDecrementQuantity || defectiveTrackerSubmitting}
-                        className={getTrackerStepperButtonClass(!defectiveTrackerCanDecrementQuantity || defectiveTrackerSubmitting)}
-                        aria-label={tr('Decrease quantity', '数量を減らす')}
-                      >
-                        <Minus size={18} />
-                      </button>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={defectiveTrackerQuantity}
-                        onChange={(event) => {
-                          setDefectiveTrackerNotice(null);
-                          handleDefectiveTrackerQuantityChange(event.target.value);
-                        }}
-                        className={trackerStepperInputClass}
-                        placeholder="1"
-                        aria-label={tr('Quantity', '数量')}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => stepDefectiveTrackerQuantity(1)}
-                        disabled={defectiveTrackerSubmitting}
-                        className={getTrackerStepperButtonClass(defectiveTrackerSubmitting)}
-                        aria-label={tr('Increase quantity', '数量を増やす')}
-                      >
-                        <Plus size={18} />
-                      </button>
-                    </div>
-                    <p className={trackerFieldHintClass}>
-                      {tr(
-                        'Use the minus and plus buttons for quick counting. Typing still works if needed.',
-                        '通常はマイナスとプラスで数量調整できます。必要なら手入力も可能です。',
-                      )}
-                    </p>
-                    {defectiveTrackerFieldErrors.quantity && (
-                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.quantity}</p>
-                    )}
-                  </div>
-
-                  <div className={`md:col-span-2 ${getTrackerFieldCardClass('defectType')}`}>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <p className={trackerFieldLabelClass}>{tr('Defect type', '不良類')}</p>
-                        <h3 className="mt-1 text-base font-semibold tracking-[-0.03em] text-[var(--text-primary)]">
-                          {tr('Choose the defect category', '不良類を選択')}
-                        </h3>
-                      </div>
-                      <span className={trackerSelectionStatusClass}>
-                        <span
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            defectiveTrackerSelectedType ? 'bg-emerald-400' : 'bg-slate-300 dark:bg-slate-500'
-                          }`}
-                        />
-                        {defectiveTrackerSelectedType
-                          ? defectiveTrackerSelectedType
-                          : defectiveTrackerTypes.length
-                            ? tr(`${defectiveTrackerTypes.length} options`, `${defectiveTrackerTypes.length} 件の候補`)
-                            : tr('Unavailable', '未取得')}
-                      </span>
-                    </div>
-                    {defectiveTrackerTypes.length ? (
-                      <div className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-3">
-                        {defectiveTrackerTypes.map((option) => {
-                          const isSelected = option === defectiveTrackerSelectedType;
-                          return (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => {
-                                setDefectiveTrackerSelectedType(option);
-                                setDefectiveTrackerNotice(null);
-                                clearDefectiveTrackerFieldError('defectType');
-                              }}
-                              className={getTrackerCompactChoiceButtonClass(isSelected)}
-                            >
-                              {isSelected ? <Check size={15} className="shrink-0" /> : <span className="h-2.5 w-2.5 rounded-full bg-current/60" />}
-                              <span className="min-w-0 break-words">{option}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className={`mt-4 ${trackerSelectionHintClass}`}>
-                        {tr('No defect types are available in the target database yet.', '登録先データベースに不良類の候補がまだありません。')}
-                      </div>
-                    )}
-                    {defectiveTrackerFieldErrors.defectType && (
-                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.defectType}</p>
-                    )}
-                  </div>
-                </div>
+                      className={getTrackerChoiceButtonClass(isSelected)}
+                    >
+                      {isSelected ? <Check size={16} className="shrink-0" /> : <span className="h-2.5 w-2.5 rounded-full bg-current/60" />}
+                      <span className="font-semibold">{color}</span>
+                      <span className="rounded-full border border-current/10 px-2.5 py-1 text-[11px] font-semibold leading-none opacity-80">{partCount}</span>
+                    </button>
+                  );
+                })}
               </div>
-            </Panel>
-          )}
+              {defectiveTrackerFieldErrors.color && (
+                <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.color}</p>
+              )}
+            </div>
+
+            {/* Part selection */}
+            <div className={`${trackerSelectionPanelClass} ${defectiveTrackerFieldErrors.partNumber ? ‘border-rose-300 dark:border-rose-500/60’ : ‘’}`}>
+              <div className="flex items-center justify-between gap-3">
+                <p className={trackerFieldLabelClass}>{tr(‘Part number’, ‘品番’)}</p>
+                <span className={trackerSelectionStatusClass}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${defectiveTrackerPartNumber ? ‘bg-emerald-400’ : ‘bg-slate-300 dark:bg-slate-500’}`} />
+                  {defectiveTrackerPartNumber
+                    ? tr(‘Selected’, ‘選択済み’)
+                    : defectiveTrackerSelectedColor
+                      ? tr(`${defectiveTrackerSelectedPartCount} available`, `${defectiveTrackerSelectedPartCount} 件`)
+                      : tr(‘Choose color first’, ‘先に色を選択’)}
+                </span>
+              </div>
+              {defectiveTrackerSelectedColor ? (
+                defectiveTrackerSelectedPartCount ? (
+                  <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+                    {defectiveTrackerPartOptions.map((partNumber) => {
+                      const isSelected = partNumber === defectiveTrackerPartNumber;
+                      const {mainLabel, trialLabel} = splitDefectiveTrackerPartDisplay(partNumber);
+                      return (
+                        <button
+                          key={partNumber}
+                          type="button"
+                          onClick={() => {
+                            setDefectiveTrackerPartNumber(partNumber);
+                            setDefectiveTrackerNotice(null);
+                            clearDefectiveTrackerFieldError(‘partNumber’);
+                          }}
+                          className={getTrackerPartCardClass(isSelected)}
+                        >
+                          <div className="min-w-0 flex-1 pr-2">
+                            {trialLabel && <span className={trackerPartTrialBadgeClass}>{trialLabel}</span>}
+                            <p className={`${trackerPartTitleClass} ${trialLabel ? ‘mt-3’ : ‘’}`}>{mainLabel || partNumber}</p>
+                          </div>
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] ${
+                              isSelected
+                                ? ‘bg-emerald-500 text-white’
+                                : theme === ‘dark’
+                                  ? ‘border border-white/10 bg-white/[0.05] text-slate-300’
+                                  : ‘border border-slate-200/90 bg-white text-slate-500’
+                            }`}
+                          >
+                            {isSelected ? <Check size={16} /> : <ChevronRight size={16} />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className={`mt-3 ${trackerSelectionHintClass}`}>
+                    {tr(‘No parts found for this color.’, ‘この色に部品が見つかりません。’)}
+                  </div>
+                )
+              ) : (
+                <div className={`mt-3 ${trackerSelectionHintClass}`}>
+                  {tr(‘Select a color to see parts.’, ‘色を選択すると部品が表示されます。’)}
+                </div>
+              )}
+              {defectiveTrackerFieldErrors.partNumber && (
+                <p className="mt-3 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partNumber}</p>
+              )}
+            </div>
+
+            {/* Part name + Quantity */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className={getTrackerFieldCardClass(‘partName’)}>
+                <p className={trackerFieldLabelClass}>{tr(‘Part name’, ‘部品名’)}</p>
+                <input
+                  type="text"
+                  value={defectiveTrackerPartName}
+                  onChange={(event) => {
+                    setDefectiveTrackerPartName(event.target.value);
+                    setDefectiveTrackerNotice(null);
+                    clearDefectiveTrackerFieldError(‘partName’);
+                  }}
+                  className={getTrackerFieldInputClass(‘partName’)}
+                  placeholder={tr(‘Enter part name’, ‘部品名を入力’)}
+                />
+                {defectiveTrackerFieldErrors.partName && (
+                  <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partName}</p>
+                )}
+              </div>
+
+              <div className={getTrackerFieldCardClass(‘quantity’)}>
+                <div className="flex items-center justify-between gap-3">
+                  <p className={trackerFieldLabelClass}>{tr(‘Quantity’, ‘数量’)}</p>
+                  <span className={trackerSelectionStatusClass}>
+                    {defectiveTrackerQuantityValue != null
+                      ? tr(`${defectiveTrackerQuantityValue} pcs`, `${defectiveTrackerQuantityValue} 個`)
+                      : tr(‘Set qty’, ‘数量を設定’)}
+                  </span>
+                </div>
+                <div className={trackerStepperShellClass}>
+                  <button
+                    type="button"
+                    onClick={() => stepDefectiveTrackerQuantity(-1)}
+                    disabled={!defectiveTrackerCanDecrementQuantity || defectiveTrackerSubmitting}
+                    className={getTrackerStepperButtonClass(!defectiveTrackerCanDecrementQuantity || defectiveTrackerSubmitting)}
+                    aria-label={tr(‘Decrease’, ‘減らす’)}
+                  >
+                    <Minus size={18} />
+                  </button>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={defectiveTrackerQuantity}
+                    onChange={(event) => {
+                      setDefectiveTrackerNotice(null);
+                      handleDefectiveTrackerQuantityChange(event.target.value);
+                    }}
+                    className={trackerStepperInputClass}
+                    placeholder="1"
+                    aria-label={tr(‘Quantity’, ‘数量’)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => stepDefectiveTrackerQuantity(1)}
+                    disabled={defectiveTrackerSubmitting}
+                    className={getTrackerStepperButtonClass(defectiveTrackerSubmitting)}
+                    aria-label={tr(‘Increase’, ‘増やす’)}
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+                {defectiveTrackerFieldErrors.quantity && (
+                  <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.quantity}</p>
+                )}
+              </div>
+            </div>
+
+            {/* Defect type */}
+            <div className={getTrackerFieldCardClass(‘defectType’)}>
+              <div className="flex items-center justify-between gap-3">
+                <p className={trackerFieldLabelClass}>{tr(‘Defect type’, ‘不良類’)}</p>
+                <span className={trackerSelectionStatusClass}>
+                  <span className={`h-2.5 w-2.5 rounded-full ${defectiveTrackerSelectedType ? ‘bg-emerald-400’ : ‘bg-slate-300 dark:bg-slate-500’}`} />
+                  {defectiveTrackerSelectedType
+                    ? defectiveTrackerSelectedType
+                    : defectiveTrackerTypes.length
+                      ? tr(`${defectiveTrackerTypes.length} options`, `${defectiveTrackerTypes.length} 件`)
+                      : tr(‘Unavailable’, ‘未取得’)}
+                </span>
+              </div>
+              {defectiveTrackerTypes.length ? (
+                <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                  {defectiveTrackerTypes.map((option) => {
+                    const isSelected = option === defectiveTrackerSelectedType;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => {
+                          setDefectiveTrackerSelectedType(option);
+                          setDefectiveTrackerNotice(null);
+                          clearDefectiveTrackerFieldError(‘defectType’);
+                        }}
+                        className={getTrackerCompactChoiceButtonClass(isSelected)}
+                      >
+                        {isSelected ? <Check size={15} className="shrink-0" /> : <span className="h-2.5 w-2.5 rounded-full bg-current/60" />}
+                        <span className="min-w-0 break-words">{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className={`mt-3 ${trackerSelectionHintClass}`}>
+                  {tr(‘No defect types available yet.’, ‘不良類の候補がまだありません。’)}
+                </div>
+              )}
+              {defectiveTrackerFieldErrors.defectType && (
+                <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.defectType}</p>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className={actionBarClass}>
