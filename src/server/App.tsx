@@ -120,6 +120,7 @@ type DefectiveTrackerSnapshot = {
     id: string;
     title: string;
   } | null;
+  partNameSuggestions: string[];
   timeZone: string;
   today: string;
   warning: string | null;
