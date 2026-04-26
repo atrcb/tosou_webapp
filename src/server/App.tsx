@@ -1999,9 +1999,9 @@ export default function App() {
   const contentWidthClass = embedMode ? 'mt-4' : 'mt-6';
   const heroLayoutClass = embedMode ? 'relative space-y-5' : 'relative space-y-8';
   const homeLauncherGridClass = embedMode
-    ? 'grid gap-3 sm:grid-cols-2 md:grid-cols-3'
+    ? 'grid grid-cols-2 gap-3'
     : 'grid gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4';
-  const systemLauncherGridClass = embedMode ? 'grid gap-3 sm:grid-cols-3' : 'grid gap-4 md:grid-cols-3';
+  const systemLauncherGridClass = embedMode ? 'grid grid-cols-3 gap-2' : 'grid gap-4 md:grid-cols-3';
   const homeInfoGridClass = embedMode ? 'grid gap-5 xl:grid-cols-[1.15fr_0.85fr]' : 'grid gap-6 lg:grid-cols-[1.15fr_0.85fr]';
   const workflowShellClass = embedMode ? 'space-y-5 pb-20' : 'space-y-6 pb-24';
   const workflowShellStyle: React.CSSProperties = {overflowAnchor: 'none'};
