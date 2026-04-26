@@ -1313,9 +1313,13 @@ export default function App() {
           },
         }),
       });
-      const data = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save defective parts');
+        const errData = await response.json().catch(() => ({}));
+        throw new Error((errData as any).error || `Save failed (HTTP ${response.status})`);
+      }
+      const data = await response.json();
+      if (!data?.created || data.created < 1) {
+        throw new Error('Server did not confirm the record was created. Please refresh and try again.');
       }
 
       // Clear all form fields and selections

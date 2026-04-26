@@ -742,7 +742,11 @@ export async function submitDefectiveParts(submissions: DefectiveTrackerSubmissi
   let created = 0;
   for (const submission of cleanedSubmissions) {
     const pageProperties = buildSubmissionProperties(properties, submission, today, partsMap);
-    await notion.createPage(DEFECTIVE_PARTS_DATABASE_ID, pageProperties);
+    const createdPage = await notion.createPage(DEFECTIVE_PARTS_DATABASE_ID, pageProperties);
+    if (!createdPage?.id) {
+      throw new Error('Notion did not return a page ID — the record was not saved. Check the integration permissions.');
+    }
+    console.info(`[defective-parts] created page ${createdPage.id} in ${DEFECTIVE_PARTS_DATABASE_ID}`);
     created += 1;
   }
 
