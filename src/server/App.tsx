@@ -654,6 +654,9 @@ export default function App() {
   const [defectiveTrackerTypes, setDefectiveTrackerTypes] = useState<string[]>([]);
   const [defectiveTrackerQuantity, setDefectiveTrackerQuantity] = useState('');
   const [defectiveTrackerWarning, setDefectiveTrackerWarning] = useState<string | null>(null);
+  const [defectiveTrackerToast, setDefectiveTrackerToast] = useState<DefectiveTrackerNotice | null>(null);
+  const defectiveTrackerColorSectionRef = useRef<HTMLDivElement>(null);
+  const defectiveTrackerToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hiraharaFiles, setHiraharaFiles] = useState<File[]>([]);
   const [hiraharaCompileSummary, setHiraharaCompileSummary] = useState<HiraharaCompileSummary | null>(null);
   const [reviewQuery, setReviewQuery] = useState('');
@@ -1315,13 +1318,27 @@ export default function App() {
         throw new Error(data.error || 'Failed to save defective parts');
       }
 
+      // Clear all form fields and selections
+      setDefectiveTrackerSelectedColor('');
+      setDefectiveTrackerPartNumber('');
       setDefectiveTrackerPartName('');
       setDefectiveTrackerQuantity('');
+      setDefectiveTrackerSelectedType('');
       setDefectiveTrackerFieldErrors({});
-      setDefectiveTrackerNotice({
-        message: tr('The defective part record was saved.', '欠品レコードを登録しました。'),
+      setDefectiveTrackerNotice(null);
+
+      // Show success toast and auto-dismiss after 3 s
+      if (defectiveTrackerToastTimerRef.current) clearTimeout(defectiveTrackerToastTimerRef.current);
+      setDefectiveTrackerToast({
+        message: tr('Saved! Record added to Notion.', '登録しました！Notion に追加されました。'),
         tone: 'success',
       });
+      defectiveTrackerToastTimerRef.current = setTimeout(() => setDefectiveTrackerToast(null), 3000);
+
+      // Scroll back to color section so the next entry can start immediately
+      setTimeout(() => {
+        defectiveTrackerColorSectionRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+      }, 80);
 
       setStatus(text('Defective parts saved', '欠品を登録しました'));
       addLog(
@@ -1334,7 +1351,9 @@ export default function App() {
       );
     } catch (error: any) {
       setStatus(text('Defective parts save failed', '欠品の登録に失敗しました'));
-      setDefectiveTrackerNotice({
+      // Show error toast (persistent — user must dismiss)
+      if (defectiveTrackerToastTimerRef.current) clearTimeout(defectiveTrackerToastTimerRef.current);
+      setDefectiveTrackerToast({
         message: error?.message || String(error),
         tone: 'error',
       });
@@ -3384,7 +3403,7 @@ export default function App() {
             )}
 
             {/* Color selection */}
-            <div className={`${trackerSelectionPanelClass} ${defectiveTrackerFieldErrors.color ? 'border-rose-300 dark:border-rose-500/60' : ''}`}>
+            <div ref={defectiveTrackerColorSectionRef} className={`${trackerSelectionPanelClass} ${defectiveTrackerFieldErrors.color ? 'border-rose-300 dark:border-rose-500/60' : ''}`}>
               <div className="flex items-center justify-between gap-3">
                 <p className={trackerFieldLabelClass}>{tr('Color', '色')}</p>
                 <span className={trackerSelectionStatusClass}>
@@ -4092,6 +4111,46 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* Defective parts save toast */}
+      <AnimatePresence>
+        {defectiveTrackerToast && (
+          <motion.div
+            key="defective-tracker-toast"
+            initial={{opacity: 0, y: -20, scale: 0.94}}
+            animate={{opacity: 1, y: 0, scale: 1}}
+            exit={{opacity: 0, y: -14, scale: 0.94}}
+            transition={{duration: 0.2, ease: 'easeOut'}}
+            className="fixed left-1/2 top-5 z-50 -translate-x-1/2 px-4"
+          >
+            <div
+              className={`flex items-center gap-3 rounded-[18px] px-4 py-3.5 shadow-[0_16px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl ${
+                defectiveTrackerToast.tone === 'success'
+                  ? 'border border-emerald-200 bg-emerald-50/95 text-emerald-900 dark:border-emerald-600/40 dark:bg-emerald-950/90 dark:text-emerald-100'
+                  : 'border border-rose-200 bg-rose-50/95 text-rose-900 dark:border-rose-600/40 dark:bg-rose-950/90 dark:text-rose-100'
+              }`}
+            >
+              {defectiveTrackerToast.tone === 'success' ? (
+                <Check size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+              ) : (
+                <AlertCircle size={16} className="shrink-0 text-rose-600 dark:text-rose-400" />
+              )}
+              <p className="max-w-[260px] text-sm font-semibold leading-snug">{defectiveTrackerToast.message}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (defectiveTrackerToastTimerRef.current) clearTimeout(defectiveTrackerToastTimerRef.current);
+                  setDefectiveTrackerToast(null);
+                }}
+                className="shrink-0 opacity-50 transition hover:opacity-100"
+                aria-label={tr('Dismiss', '閉じる')}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <ActivityDrawer
         open={activityOpen}
