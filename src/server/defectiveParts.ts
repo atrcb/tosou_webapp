@@ -34,6 +34,7 @@ type NotionPropertySchema = {
 type TrackerSourceExtraction = {
   colorOptions: string[];
   colorPartMap: Record<string, string[]>;
+  partNameSuggestions: string[];
   warnings: string[];
 };
 
@@ -52,6 +53,7 @@ export type DefectiveTrackerSnapshot = {
   databaseId: string;
   defectTypeOptions: string[];
   nestedDatabase: DefectiveTrackerSourceDatabase | null;
+  partNameSuggestions: string[];
   timeZone: string;
   today: string;
   warning: string | null;
@@ -307,6 +309,7 @@ function extractPartNumbers(properties: Record<string, any>): string[] {
 function buildTrackerSourceExtraction(existingPages: any[]): TrackerSourceExtraction {
   const warnings: string[] = [];
   const partsByColor = new Map<string, Set<string>>();
+  const partNameSet = new Set<string>();
   let rowsMissingColor = 0;
   let rowsMissingPartNumber = 0;
   let rowsWithEmptyPartNumberText = 0;
@@ -318,6 +321,13 @@ function buildTrackerSourceExtraction(existingPages: any[]): TrackerSourceExtrac
   for (const page of existingPages) {
     const properties = (page as any).properties || {};
     const colors = extractColorValues(properties);
+
+    // Collect 部品名 values from every page regardless of color/品番 validity
+    const rawPartName = logic.cleanStr(collectPropertyPlainText(properties['部品名']));
+    if (rawPartName) {
+      splitVisibleLines(rawPartName).forEach((line) => partNameSet.add(line));
+    }
+
     if (colors.length === 0) {
       rowsMissingColor += 1;
       continue;
@@ -370,6 +380,7 @@ function buildTrackerSourceExtraction(existingPages: any[]): TrackerSourceExtrac
   return {
     colorOptions,
     colorPartMap,
+    partNameSuggestions: Array.from(partNameSet).sort((a, b) => a.localeCompare(b, 'ja')),
     warnings,
   };
 }
@@ -413,6 +424,7 @@ async function loadWorkflowContextForTracker(pageId?: string): Promise<{
   colorOptions: string[];
   colorPartMap: Record<string, string[]>;
   nestedDatabase: DefectiveTrackerSourceDatabase;
+  partNameSuggestions: string[];
   warnings: string[];
 }> {
   const calendarPage = await resolveTrackerCalendarPage(pageId);
@@ -442,6 +454,7 @@ async function loadWorkflowContextForTracker(pageId?: string): Promise<{
       id: nestedResolution.nestedId,
       title: nestedDatabaseTitle,
     },
+    partNameSuggestions: extracted.partNameSuggestions,
     warnings: extracted.warnings,
   };
 }
@@ -679,12 +692,14 @@ export async function loadDefectiveTrackerSnapshot(pageId?: string): Promise<Def
   let colorOptions: string[] = [];
   let colorPartMap: Record<string, string[]> = {};
   let nestedDatabase: DefectiveTrackerSourceDatabase | null = null;
+  let partNameSuggestions: string[] = [];
 
   if (workflowContextResult.status === 'fulfilled') {
     calendarPage = workflowContextResult.value.calendarPage;
     colorOptions = workflowContextResult.value.colorOptions;
     colorPartMap = workflowContextResult.value.colorPartMap;
     nestedDatabase = workflowContextResult.value.nestedDatabase;
+    partNameSuggestions = workflowContextResult.value.partNameSuggestions;
     warnings.push(...workflowContextResult.value.warnings);
   } else {
     warnings.push(workflowContextResult.reason?.message || String(workflowContextResult.reason));
@@ -715,6 +730,7 @@ export async function loadDefectiveTrackerSnapshot(pageId?: string): Promise<Def
     databaseId: DEFECTIVE_PARTS_DATABASE_ID,
     defectTypeOptions: schemaStatus.defectTypeOptions,
     nestedDatabase,
+    partNameSuggestions,
     timeZone: TRACKER_TIME_ZONE,
     today,
     warning: warnings.length > 0 ? warnings.join(' | ') : null,

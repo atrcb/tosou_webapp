@@ -652,6 +652,7 @@ export default function App() {
   const [defectiveTrackerFieldErrors, setDefectiveTrackerFieldErrors] = useState<DefectiveTrackerFieldErrors>({});
   const [defectiveTrackerToday, setDefectiveTrackerToday] = useState('');
   const [defectiveTrackerTypes, setDefectiveTrackerTypes] = useState<string[]>([]);
+  const [defectiveTrackerPartNameSuggestions, setDefectiveTrackerPartNameSuggestions] = useState<string[]>([]);
   const [defectiveTrackerQuantity, setDefectiveTrackerQuantity] = useState('');
   const [defectiveTrackerWarning, setDefectiveTrackerWarning] = useState<string | null>(null);
   const [defectiveTrackerToast, setDefectiveTrackerToast] = useState<DefectiveTrackerNotice | null>(null);
@@ -1127,6 +1128,7 @@ export default function App() {
       setDefectiveTrackerPageId(data.calendarPage?.id ?? pageId ?? '');
       setDefectiveTrackerToday(data.today ?? '');
       setDefectiveTrackerTypes(data.defectTypeOptions ?? []);
+      setDefectiveTrackerPartNameSuggestions(data.partNameSuggestions ?? []);
       setDefectiveTrackerWarning(data.warning ?? null);
       setDefectiveTrackerFieldErrors({});
       setDefectiveTrackerSelectedColor(nextSelectedColor);
@@ -1157,6 +1159,7 @@ export default function App() {
       setDefectiveTrackerPartNumber('');
       setDefectiveTrackerToday('');
       setDefectiveTrackerTypes([]);
+      setDefectiveTrackerPartNameSuggestions([]);
       setDefectiveTrackerFieldErrors({});
       setDefectiveTrackerWarning(error?.message || String(error));
       setStatus(text('Defective parts tracker failed to load', '欠品入力の読み込みに失敗しました'));
@@ -3513,7 +3516,44 @@ export default function App() {
             {/* Part name + Quantity */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className={getTrackerFieldCardClass('partName')}>
-                <p className={trackerFieldLabelClass}>{tr('Part name', '部品名')}</p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className={trackerFieldLabelClass}>{tr('Part name', '部品名')}</p>
+                  {defectiveTrackerPartName && (
+                    <span className={trackerSelectionStatusClass}>
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                      {defectiveTrackerPartName}
+                    </span>
+                  )}
+                </div>
+                {defectiveTrackerPartNameSuggestions.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5">
+                    {defectiveTrackerPartNameSuggestions.map((name) => {
+                      const isActive = defectiveTrackerPartName === name;
+                      return (
+                        <button
+                          key={name}
+                          type="button"
+                          onClick={() => {
+                            setDefectiveTrackerPartName(isActive ? '' : name);
+                            setDefectiveTrackerNotice(null);
+                            clearDefectiveTrackerFieldError('partName');
+                          }}
+                          className={
+                            isActive
+                              ? theme === 'dark'
+                                ? 'rounded-full border border-sky-400/60 bg-sky-500/20 px-3 py-1.5 text-xs font-semibold text-sky-100 transition touch-manipulation'
+                                : 'rounded-full border border-sky-300 bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-900 transition touch-manipulation'
+                              : theme === 'dark'
+                                ? 'rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/10 touch-manipulation active:scale-95'
+                                : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 touch-manipulation active:scale-95'
+                          }
+                        >
+                          {name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <input
                   type="text"
                   value={defectiveTrackerPartName}
@@ -3523,7 +3563,7 @@ export default function App() {
                     clearDefectiveTrackerFieldError('partName');
                   }}
                   className={getTrackerFieldInputClass('partName')}
-                  placeholder={tr('Enter part name', '部品名を入力')}
+                  placeholder={tr('Or type a name…', 'または直接入力…')}
                 />
                 {defectiveTrackerFieldErrors.partName && (
                   <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partName}</p>
