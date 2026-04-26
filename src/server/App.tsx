@@ -4153,9 +4153,9 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-transparent text-[var(--text-primary)]">
+    <div className="min-h-screen overflow-x-hidden bg-transparent text-[var(--text-primary)]">
       <div className="relative min-h-screen">
-        <main className="min-w-0">
+        <main className="min-w-0 overflow-x-hidden">
           <div className={shellPaddingClass} style={shellZoomPaddingStyle}>
             <div className={shellInnerWidthClass} style={shellZoomInnerWidthStyle}>
                 <header className={shellHeaderClass}>
@@ -4173,7 +4173,7 @@ export default function App() {
                     <span className={`h-2 w-2 rounded-full ${isBusy ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                     {localize(status)}
                   </div>
-                  <div className="hidden items-center gap-2 md:flex">
+                  <div className={`${embedMode ? 'flex' : 'hidden md:flex'} items-center gap-2`}>
                     <button
                       onClick={() => setPageZoom((prev) => clamp(Number((prev - 0.1).toFixed(2)), 0.7, 1.4))}
                       className="icon-button"
