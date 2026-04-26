@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import * as logic from './logic.js';
 import * as notion from './notion.js';
 import {resolveWorkflowManagerNestedDatabase} from './workflowNotion.js';
@@ -6,6 +8,13 @@ const DEFAULT_DEFECTIVE_PARTS_DATABASE_ID = '11132a09e406803e933cebd191e9fb82';
 const DEFECTIVE_PARTS_DATABASE_ID =
   process.env.DEFECTIVE_PARTS_DATABASE_ID || DEFAULT_DEFECTIVE_PARTS_DATABASE_ID;
 const TRACKER_TIME_ZONE = process.env.TRACKER_TIME_ZONE || process.env.TZ || 'Asia/Tokyo';
+const CACHE_DIR = process.env.CACHE_DIR || path.join('/tmp', 'notion-backend-cache');
+const PART_NAME_SUGGESTIONS_FILE = path.join(CACHE_DIR, 'part-name-suggestions.json');
+
+const DEFAULT_PART_NAME_SUGGESTIONS: string[] = [
+  '本体', '棚板', 'パネル', '支柱', '天板',
+  'パイプ', '補強', 'フレーム', 'カバー', 'ウェイト', 'ベース', 'プレート',
+];
 
 type CalendarPage = {
   id: string;
@@ -34,7 +43,6 @@ type NotionPropertySchema = {
 type TrackerSourceExtraction = {
   colorOptions: string[];
   colorPartMap: Record<string, string[]>;
-  partNameSuggestions: string[];
   warnings: string[];
 };
 
@@ -309,7 +317,6 @@ function extractPartNumbers(properties: Record<string, any>): string[] {
 function buildTrackerSourceExtraction(existingPages: any[]): TrackerSourceExtraction {
   const warnings: string[] = [];
   const partsByColor = new Map<string, Set<string>>();
-  const partNameSet = new Set<string>();
   let rowsMissingColor = 0;
   let rowsMissingPartNumber = 0;
   let rowsWithEmptyPartNumberText = 0;
@@ -321,13 +328,6 @@ function buildTrackerSourceExtraction(existingPages: any[]): TrackerSourceExtrac
   for (const page of existingPages) {
     const properties = (page as any).properties || {};
     const colors = extractColorValues(properties);
-
-    // Collect 部品名 values from every page regardless of color/品番 validity
-    const rawPartName = logic.cleanStr(collectPropertyPlainText(properties['部品名']));
-    if (rawPartName) {
-      splitVisibleLines(rawPartName).forEach((line) => partNameSet.add(line));
-    }
-
     if (colors.length === 0) {
       rowsMissingColor += 1;
       continue;
@@ -380,7 +380,6 @@ function buildTrackerSourceExtraction(existingPages: any[]): TrackerSourceExtrac
   return {
     colorOptions,
     colorPartMap,
-    partNameSuggestions: Array.from(partNameSet).sort((a, b) => a.localeCompare(b, 'ja')),
     warnings,
   };
 }
@@ -424,7 +423,6 @@ async function loadWorkflowContextForTracker(pageId?: string): Promise<{
   colorOptions: string[];
   colorPartMap: Record<string, string[]>;
   nestedDatabase: DefectiveTrackerSourceDatabase;
-  partNameSuggestions: string[];
   warnings: string[];
 }> {
   const calendarPage = await resolveTrackerCalendarPage(pageId);
@@ -454,7 +452,6 @@ async function loadWorkflowContextForTracker(pageId?: string): Promise<{
       id: nestedResolution.nestedId,
       title: nestedDatabaseTitle,
     },
-    partNameSuggestions: extracted.partNameSuggestions,
     warnings: extracted.warnings,
   };
 }
@@ -680,11 +677,38 @@ function normalizeSubmission(submission: DefectiveTrackerSubmission): DefectiveT
   };
 }
 
+async function loadCustomPartNameSuggestions(): Promise<string[]> {
+  try {
+    const content = await fs.promises.readFile(PART_NAME_SUGGESTIONS_FILE, 'utf8');
+    const parsed = JSON.parse(content);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0);
+  } catch {
+    return [];
+  }
+}
+
+export async function loadPartNameSuggestions(): Promise<string[]> {
+  const custom = await loadCustomPartNameSuggestions();
+  const extra = custom.filter((c) => !DEFAULT_PART_NAME_SUGGESTIONS.includes(c));
+  return [...DEFAULT_PART_NAME_SUGGESTIONS, ...extra];
+}
+
+export async function savePartNameSuggestion(name: string): Promise<void> {
+  const cleaned = logic.cleanStr(name);
+  if (!cleaned || DEFAULT_PART_NAME_SUGGESTIONS.includes(cleaned)) return;
+  const existing = await loadCustomPartNameSuggestions();
+  if (existing.includes(cleaned)) return;
+  await fs.promises.mkdir(CACHE_DIR, {recursive: true});
+  await fs.promises.writeFile(PART_NAME_SUGGESTIONS_FILE, JSON.stringify([...existing, cleaned], null, 2), 'utf8');
+}
+
 export async function loadDefectiveTrackerSnapshot(pageId?: string): Promise<DefectiveTrackerSnapshot> {
   const today = getIsoDateInTimeZone(TRACKER_TIME_ZONE);
-  const [workflowContextResult, defectDatabaseResult] = await Promise.allSettled([
+  const [workflowContextResult, defectDatabaseResult, partNameSuggestions] = await Promise.allSettled([
     loadWorkflowContextForTracker(pageId),
     notion.retrieveDatabase(DEFECTIVE_PARTS_DATABASE_ID),
+    loadPartNameSuggestions(),
   ]);
 
   const warnings: string[] = [];
@@ -692,14 +716,12 @@ export async function loadDefectiveTrackerSnapshot(pageId?: string): Promise<Def
   let colorOptions: string[] = [];
   let colorPartMap: Record<string, string[]> = {};
   let nestedDatabase: DefectiveTrackerSourceDatabase | null = null;
-  let partNameSuggestions: string[] = [];
 
   if (workflowContextResult.status === 'fulfilled') {
     calendarPage = workflowContextResult.value.calendarPage;
     colorOptions = workflowContextResult.value.colorOptions;
     colorPartMap = workflowContextResult.value.colorPartMap;
     nestedDatabase = workflowContextResult.value.nestedDatabase;
-    partNameSuggestions = workflowContextResult.value.partNameSuggestions;
     warnings.push(...workflowContextResult.value.warnings);
   } else {
     warnings.push(workflowContextResult.reason?.message || String(workflowContextResult.reason));
@@ -730,7 +752,7 @@ export async function loadDefectiveTrackerSnapshot(pageId?: string): Promise<Def
     databaseId: DEFECTIVE_PARTS_DATABASE_ID,
     defectTypeOptions: schemaStatus.defectTypeOptions,
     nestedDatabase,
-    partNameSuggestions,
+    partNameSuggestions: partNameSuggestions.status === 'fulfilled' ? partNameSuggestions.value : DEFAULT_PART_NAME_SUGGESTIONS,
     timeZone: TRACKER_TIME_ZONE,
     today,
     warning: warnings.length > 0 ? warnings.join(' | ') : null,

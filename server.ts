@@ -4599,6 +4599,17 @@ app.post('/api/defective-parts/submit', async (req, res) => {
   }
 });
 
+app.post('/api/defective-parts/part-name-suggestions', async (req, res) => {
+  try {
+    const name = readQueryStringValue(req.body?.name);
+    if (!name) return res.status(400).json({error: 'name is required'});
+    await defectiveParts.savePartNameSuggestion(name);
+    res.json({ok: true});
+  } catch (error: any) {
+    res.status(500).json({error: error.message});
+  }
+});
+
 app.post('/api/remove-product', async (req, res) => {
   try {
     await handleRemoveProduct(req.body, res);
@@ -4704,6 +4715,22 @@ app.post(
       await handleDefectivePartsSubmit(req.body, res);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  }
+);
+
+app.post(
+  '/embed-api/defective-parts/part-name-suggestions',
+  applyRateLimit('embed-api', EMBED_API_RATE_LIMIT_MAX, EMBED_API_RATE_LIMIT_WINDOW_SEC),
+  requireEmbedScope('embed:write'),
+  async (req, res) => {
+    try {
+      const name = readQueryStringValue(req.body?.name);
+      if (!name) return res.status(400).json({error: 'name is required'});
+      await defectiveParts.savePartNameSuggestion(name);
+      res.json({ok: true});
+    } catch (error: any) {
+      res.status(500).json({error: error.message});
     }
   }
 );

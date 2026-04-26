@@ -646,6 +646,7 @@ export default function App() {
   const [defectiveTrackerNotice, setDefectiveTrackerNotice] = useState<DefectiveTrackerNotice | null>(null);
   const [defectiveTrackerPageId, setDefectiveTrackerPageId] = useState('');
   const [defectiveTrackerPartName, setDefectiveTrackerPartName] = useState('');
+  const [defectiveTrackerPartNameSuggestions, setDefectiveTrackerPartNameSuggestions] = useState<string[]>([]);
   const [defectiveTrackerPartNumber, setDefectiveTrackerPartNumber] = useState('');
   const [defectiveTrackerSelectedColor, setDefectiveTrackerSelectedColor] = useState('');
   const [defectiveTrackerSubmitting, setDefectiveTrackerSubmitting] = useState(false);
@@ -653,7 +654,6 @@ export default function App() {
   const [defectiveTrackerFieldErrors, setDefectiveTrackerFieldErrors] = useState<DefectiveTrackerFieldErrors>({});
   const [defectiveTrackerToday, setDefectiveTrackerToday] = useState('');
   const [defectiveTrackerTypes, setDefectiveTrackerTypes] = useState<string[]>([]);
-  const [defectiveTrackerPartNameSuggestions, setDefectiveTrackerPartNameSuggestions] = useState<string[]>([]);
   const [defectiveTrackerQuantity, setDefectiveTrackerQuantity] = useState('');
   const [defectiveTrackerWarning, setDefectiveTrackerWarning] = useState<string | null>(null);
   const [defectiveTrackerToast, setDefectiveTrackerToast] = useState<DefectiveTrackerNotice | null>(null);
@@ -1129,8 +1129,8 @@ export default function App() {
       setDefectiveTrackerPageId(data.calendarPage?.id ?? pageId ?? '');
       setDefectiveTrackerToday(data.today ?? '');
       setDefectiveTrackerTypes(data.defectTypeOptions ?? []);
-      setDefectiveTrackerPartNameSuggestions(data.partNameSuggestions ?? []);
       setDefectiveTrackerWarning(data.warning ?? null);
+      if (data.partNameSuggestions?.length) setDefectiveTrackerPartNameSuggestions(data.partNameSuggestions);
       setDefectiveTrackerFieldErrors({});
       setDefectiveTrackerSelectedColor(nextSelectedColor);
       setDefectiveTrackerPartNumber(nextSelectedPartNumber);
@@ -1160,7 +1160,6 @@ export default function App() {
       setDefectiveTrackerPartNumber('');
       setDefectiveTrackerToday('');
       setDefectiveTrackerTypes([]);
-      setDefectiveTrackerPartNameSuggestions([]);
       setDefectiveTrackerFieldErrors({});
       setDefectiveTrackerWarning(error?.message || String(error));
       setStatus(text('Defective parts tracker failed to load', '欠品入力の読み込みに失敗しました'));
@@ -1324,6 +1323,17 @@ export default function App() {
       const data = await response.json();
       if (!data?.created || data.created < 1) {
         throw new Error('Server did not confirm the record was created. Please refresh and try again.');
+      }
+
+      // Persist a new custom part name suggestion if it isn't already known
+      const submittedPartName = defectiveTrackerPartName.trim();
+      if (submittedPartName && !defectiveTrackerPartNameSuggestions.includes(submittedPartName)) {
+        setDefectiveTrackerPartNameSuggestions((prev) => [...prev, submittedPartName]);
+        apiFetch('/api/defective-parts/part-name-suggestions', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name: submittedPartName}),
+        }).catch(() => {/* non-critical — suggestion already added locally */});
       }
 
       // Clear all form fields and selections
@@ -3517,44 +3527,44 @@ export default function App() {
             {/* Part name + Quantity */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className={getTrackerFieldCardClass('partName')}>
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-2">
                   <p className={trackerFieldLabelClass}>{tr('Part name', '部品名')}</p>
-                  {defectiveTrackerPartName && (
+                  {defectiveTrackerPartName.trim() && (
                     <span className={trackerSelectionStatusClass}>
                       <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                      {defectiveTrackerPartName}
+                      {defectiveTrackerPartName.trim()}
                     </span>
                   )}
                 </div>
-                {defectiveTrackerPartNameSuggestions.length > 0 && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5">
-                    {defectiveTrackerPartNameSuggestions.map((name) => {
-                      const isActive = defectiveTrackerPartName === name;
-                      return (
-                        <button
-                          key={name}
-                          type="button"
-                          onClick={() => {
-                            setDefectiveTrackerPartName(isActive ? '' : name);
-                            setDefectiveTrackerNotice(null);
-                            clearDefectiveTrackerFieldError('partName');
-                          }}
-                          className={
-                            isActive
-                              ? theme === 'dark'
-                                ? 'rounded-full border border-sky-400/60 bg-sky-500/20 px-3 py-1.5 text-xs font-semibold text-sky-100 transition touch-manipulation'
-                                : 'rounded-full border border-sky-300 bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-900 transition touch-manipulation'
-                              : theme === 'dark'
-                                ? 'rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/10 touch-manipulation active:scale-95'
-                                : 'rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 touch-manipulation active:scale-95'
-                          }
-                        >
-                          {name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Suggestion chips */}
+                <div className="-mx-1 mt-3 flex flex-wrap gap-2">
+                  {defectiveTrackerPartNameSuggestions.map((suggestion) => {
+                    const isSelected = defectiveTrackerPartName.trim() === suggestion;
+                    return (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => {
+                          setDefectiveTrackerPartName(suggestion);
+                          setDefectiveTrackerNotice(null);
+                          clearDefectiveTrackerFieldError('partName');
+                        }}
+                        className={
+                          isSelected
+                            ? theme === 'dark'
+                              ? 'inline-flex items-center gap-1.5 rounded-full border border-sky-400/60 bg-sky-500/14 px-3 py-1.5 text-xs font-semibold text-sky-100 transition touch-manipulation active:scale-95'
+                              : 'inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 transition touch-manipulation active:scale-95'
+                            : theme === 'dark'
+                              ? 'inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.08] touch-manipulation active:scale-95'
+                              : 'inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:border-slate-300 hover:bg-white touch-manipulation active:scale-95'
+                        }
+                      >
+                        {isSelected && <Check size={11} className="shrink-0" />}
+                        {suggestion}
+                      </button>
+                    );
+                  })}
+                </div>
                 <input
                   type="text"
                   value={defectiveTrackerPartName}
@@ -3563,8 +3573,8 @@ export default function App() {
                     setDefectiveTrackerNotice(null);
                     clearDefectiveTrackerFieldError('partName');
                   }}
-                  className={getTrackerFieldInputClass('partName')}
-                  placeholder={tr('Or type a name…', 'または直接入力…')}
+                  className={`${getTrackerFieldInputClass('partName')} mt-3`}
+                  placeholder={tr('Or type a custom name', 'またはカスタム名を入力')}
                 />
                 {defectiveTrackerFieldErrors.partName && (
                   <p className="mt-2 text-sm text-rose-600 dark:text-rose-300">{defectiveTrackerFieldErrors.partName}</p>
