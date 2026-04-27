@@ -1079,6 +1079,7 @@ const buildEmbedBootstrapScript = (assetScriptPath: string, bootstrapState: Embe
 
   window.__EMBED_MODE__ = true;
   window.__EMBED_SESSION__ = sessionPromise;
+  window.__EMBED_ACCESS_TOKEN__ = accessToken;
 
   const clearLoadingShell = () => {
     const rootEl = document.getElementById('root');
@@ -1837,16 +1838,36 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
         };
 
         const revokeDownload = () => {
-          if (state.downloadUrl) {
+          if (state.downloadUrl && state.downloadUrl.indexOf('blob:') === 0) {
             URL.revokeObjectURL(state.downloadUrl);
-            state.downloadUrl = '';
           }
+          state.downloadUrl = '';
           downloadLinkEl.classList.add('hidden');
           downloadLinkEl.removeAttribute('href');
+          downloadLinkEl.removeAttribute('target');
+          downloadLinkEl.removeAttribute('rel');
         };
 
         const createDownload = (base64, filename) => {
           revokeDownload();
+          const downloadName = filename || state.selectedFile || 'updated_plan.xlsx';
+          const serverFile = state.selectedFileKey || state.selectedFile;
+          if (serverFile && state.accessToken) {
+            const params = new URLSearchParams({
+              file: serverFile,
+              name: downloadName,
+              access_token: state.accessToken
+            });
+            downloadLinkEl.href = '/embed-api/download?' + params.toString();
+            downloadLinkEl.download = downloadName;
+            downloadLinkEl.target = '_blank';
+            downloadLinkEl.rel = 'noopener';
+            downloadLinkEl.className = 'button primary';
+            downloadLinkEl.textContent = 'Open processed workbook';
+            downloadLinkEl.classList.remove('hidden');
+            return;
+          }
+
           const binary = atob(base64);
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i += 1) {
@@ -1857,7 +1878,7 @@ const renderEmbeddedLegacyLiteApp = (req: express.Request, res: express.Response
           });
           state.downloadUrl = URL.createObjectURL(blob);
           downloadLinkEl.href = state.downloadUrl;
-          downloadLinkEl.download = filename;
+          downloadLinkEl.download = downloadName;
           downloadLinkEl.className = 'button primary';
           downloadLinkEl.textContent = 'Open processed workbook';
           downloadLinkEl.classList.remove('hidden');
@@ -4024,17 +4045,44 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
         };
 
         const revokeDownload = function () {
-          if (state.downloadUrl) {
+          if (state.downloadUrl && state.downloadUrl.indexOf('blob:') === 0) {
             URL.revokeObjectURL(state.downloadUrl);
-            state.downloadUrl = '';
           }
+          state.downloadUrl = '';
           downloadLinkEl.className = 'button secondary hidden';
           downloadLinkEl.removeAttribute('href');
+          downloadLinkEl.removeAttribute('target');
+          downloadLinkEl.removeAttribute('rel');
           downloadCopyEl.textContent = 'Processed file appears here.';
         };
 
         const createDownload = function (base64, filename) {
           revokeDownload();
+          const downloadName = filename || state.selectedFile || 'updated_plan.xlsx';
+          const serverFile = state.selectedFileKey || state.selectedFile;
+          if (serverFile && state.accessToken) {
+            const params = new URLSearchParams({
+              file: serverFile,
+              name: downloadName,
+              access_token: state.accessToken
+            });
+            downloadLinkEl.href = '/embed-api/download?' + params.toString();
+            downloadLinkEl.download = downloadName;
+            downloadLinkEl.target = '_blank';
+            downloadLinkEl.rel = 'noopener';
+            downloadLinkEl.className = 'button primary';
+            downloadLinkEl.innerHTML =
+              '<svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">' +
+                '<path d="M12 5v11"></path>' +
+                '<path d="m8 12 4 4 4-4"></path>' +
+                '<path d="M4 19h16"></path>' +
+              '</svg>' +
+              '<span>Open file</span>';
+            downloadLinkEl.classList.remove('hidden');
+            downloadCopyEl.textContent = downloadName + ' is ready.';
+            return;
+          }
+
           const binary = atob(base64);
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i += 1) {
@@ -4045,7 +4093,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
           });
           state.downloadUrl = URL.createObjectURL(blob);
           downloadLinkEl.href = state.downloadUrl;
-          downloadLinkEl.download = filename;
+          downloadLinkEl.download = downloadName;
           downloadLinkEl.className = 'button primary';
           downloadLinkEl.innerHTML =
             '<svg class="icon-inline" viewBox="0 0 24 24" aria-hidden="true">' +
@@ -4055,7 +4103,7 @@ const renderEmbeddedLiteApp = (req: express.Request, res: express.Response) => {
             '</svg>' +
             '<span>Open file</span>';
           downloadLinkEl.classList.remove('hidden');
-          downloadCopyEl.textContent = filename + ' is ready.';
+          downloadCopyEl.textContent = downloadName + ' is ready.';
         };
 
         const renderDailyPages = function () {

@@ -11,3 +11,4 @@ __pycache__/
 tools/windows-cad-converter/work/
 tools/windows-cad-converter/edrawings-stl-exporter/bin/
 tools/windows-cad-converter/edrawings-stl-exporter/obj/
+.codex-tmp/

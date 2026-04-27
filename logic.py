@@ -2068,6 +2068,7 @@ def group_data_daily(df: pd.DataFrame) -> Dict[str, Dict[str, List[str]]]:
 
 # Cache for user choices when multiple part candidates exist for the same text
 _PART_CHOICE_CACHE: Dict[str, str] = {}
+_PARTS_KEY_INDEX_CACHE: Dict[int, Tuple[int, List[str]]] = {}
 
 
 def _ask_user_to_choose_part_key(part_text: str, candidates: List[str]) -> Optional[str]:
@@ -2132,7 +2133,78 @@ def _ask_user_to_choose_part_key(part_text: str, candidates: List[str]) -> Optio
     return chosen["value"]
 
 
-def _append_part_with_mention_and_modifier_auto(rich_list: List[dict], part_text: str, parts_map: Dict[str, str]):
+def build_parts_key_index(parts_map: Dict[str, str]) -> List[str]:
+    """Return part keys sorted longest-first so prefix matching can stop early."""
+    if not isinstance(parts_map, dict) or not parts_map:
+        return []
+
+    cache_key = id(parts_map)
+    size = len(parts_map)
+    cached = _PARTS_KEY_INDEX_CACHE.get(cache_key)
+    if cached and cached[0] == size:
+        return cached[1]
+
+    keys = sorted((str(k) for k in parts_map.keys() if k), key=len, reverse=True)
+    _PARTS_KEY_INDEX_CACHE[cache_key] = (size, keys)
+    if len(_PARTS_KEY_INDEX_CACHE) > 16:
+        _PARTS_KEY_INDEX_CACHE.pop(next(iter(_PARTS_KEY_INDEX_CACHE)), None)
+    return keys
+
+
+def find_candidate_part_keys(
+    part_text: str,
+    parts_map: Dict[str, str],
+    parts_key_index: Optional[List[str]] = None,
+) -> List[str]:
+    if not part_text or not isinstance(parts_map, dict):
+        return []
+
+    if part_text in parts_map:
+        return [part_text]
+
+    keys = parts_key_index if parts_key_index is not None else build_parts_key_index(parts_map)
+    candidates: List[str] = []
+    best_len = -1
+
+    for key in keys:
+        if best_len >= 0 and len(key) < best_len:
+            break
+        if not part_text.startswith(key):
+            continue
+        key_len = len(key)
+        if key_len > best_len:
+            best_len = key_len
+            candidates = [key]
+        elif key_len == best_len:
+            candidates.append(key)
+
+    return candidates
+
+
+def resolve_best_part_key(
+    part_text: str,
+    parts_map: Dict[str, str],
+    parts_key_index: Optional[List[str]] = None,
+    *,
+    allow_user_choice: bool = False,
+) -> Optional[str]:
+    candidates = find_candidate_part_keys(part_text, parts_map, parts_key_index)
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+    if allow_user_choice:
+        log(f"[Link] Multiple part candidates for '{part_text}': {candidates}")
+        return _ask_user_to_choose_part_key(part_text, candidates)
+    return candidates[0]
+
+
+def _append_part_with_mention_and_modifier_auto(
+    rich_list: List[dict],
+    part_text: str,
+    parts_map: Dict[str, str],
+    parts_key_index: Optional[List[str]] = None,
+):
     """
     Append a part mention (linked to the Parts DB) plus any modifier text.
 
@@ -2144,31 +2216,12 @@ def _append_part_with_mention_and_modifier_auto(rich_list: List[dict], part_text
     if not part_text:
         return
 
-    # 1) Exact match first (highest precision)
-    if part_text in parts_map:
-        best_key = part_text
-    else:
-        # 2) Collect all keys where part_text starts with the key
-        max_len = -1
-        candidates: List[str] = []
-        for k in parts_map.keys():
-            if part_text.startswith(k):
-                L = len(k)
-                if L > max_len:
-                    max_len = L
-                    candidates = [k]
-                elif L == max_len:
-                    candidates.append(k)
-
-        if not candidates:
-            best_key = None
-        elif len(candidates) == 1:
-            best_key = candidates[0]
-        else:
-            # 3) Multiple longest candidates → ask the user which one to use
-            log(f"[Link] Multiple part candidates for '{part_text}': {candidates}")
-            chosen = _ask_user_to_choose_part_key(part_text, candidates)
-            best_key = chosen
+    best_key = resolve_best_part_key(
+        part_text,
+        parts_map,
+        parts_key_index,
+        allow_user_choice=True,
+    )
 
     if best_key and best_key in parts_map:
         # Insert mention for the chosen part page
@@ -2194,6 +2247,7 @@ def create_row_in_nested_db_auto(
     finish_qty,
     total_cycle_time,
     parts_map,
+    parts_key_index=None,
 ):
     # Determine the actual property type of 'c/t 秒' on this nested DB (Number vs Rich text)
     try:
@@ -2213,6 +2267,9 @@ def create_row_in_nested_db_auto(
                 ct_val_int = int(math.ceil(float(s)))
     except Exception:
         ct_val_int = 0
+    if parts_key_index is None:
+        parts_key_index = build_parts_key_index(parts_map)
+
     rich_text_parts = []
     for p in display_names:
         if "・" in p:
@@ -2233,7 +2290,7 @@ def create_row_in_nested_db_auto(
             rich_text_parts.append({"type": "text", "text": {"content": maybe_trial}})
             rich_text_parts.append({"type": "text", "text": {"content": "・"}})
 
-        _append_part_with_mention_and_modifier_auto(rich_text_parts, part, parts_map)
+        _append_part_with_mention_and_modifier_auto(rich_text_parts, part, parts_map, parts_key_index)
         rich_text_parts.append({"type": "text", "text": {"content": "\n"}})
 
     if rich_text_parts and rich_text_parts[-1].get("text", {}).get("content") == "\n":

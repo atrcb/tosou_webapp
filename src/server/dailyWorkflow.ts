@@ -431,6 +431,7 @@ function entryMatchesDailyNotionLine(
   line: ParsedDailyNotionLine,
   entry: DailyEntry,
   partsMap: Record<string, string>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
 ): boolean {
   const {partText, trial} = splitDailyDisplayName(entry.displayName);
   const entryQty = notionUtils.normalizeQtyStr(entry.finishQty);
@@ -443,7 +444,7 @@ function entryMatchesDailyNotionLine(
     return false;
   }
 
-  const bestKey = resolveBestPartKey(partText, partsMap);
+  const bestKey = resolveBestPartKey(partText, partsMap, partsKeyIndex);
   if (bestKey && partsMap[bestKey]) {
     if (line.mentionId !== partsMap[bestKey]) {
       return false;
@@ -460,31 +461,21 @@ function entryMatchesDailyNotionLine(
   return logic.normalizePartKey(line.partSuffixText) === logic.normalizePartKey(partText);
 }
 
-function resolveBestPartKey(partText: string, partsMap: Record<string, string>): string | null {
-  if (!partText) {
-    return null;
-  }
-  if (partsMap[partText]) {
-    return partText;
-  }
-
-  let bestKey: string | null = null;
-  let bestLen = -1;
-  for (const key of Object.keys(partsMap)) {
-    if (!partText.startsWith(key)) {
-      continue;
-    }
-    if (key.length > bestLen) {
-      bestKey = key;
-      bestLen = key.length;
-    }
-  }
-
-  return bestKey;
+function resolveBestPartKey(
+  partText: string,
+  partsMap: Record<string, string>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
+): string | null {
+  return notionUtils.resolveBestPartKey(partText, partsMap, partsKeyIndex);
 }
 
-function appendPartWithMention(richText: any[], partText: string, partsMap: Record<string, string>) {
-  const bestKey = resolveBestPartKey(partText, partsMap);
+function appendPartWithMention(
+  richText: any[],
+  partText: string,
+  partsMap: Record<string, string>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
+) {
+  const bestKey = resolveBestPartKey(partText, partsMap, partsKeyIndex);
   if (bestKey && partsMap[bestKey]) {
     richText.push({
       type: 'mention',
@@ -500,7 +491,11 @@ function appendPartWithMention(richText: any[], partText: string, partsMap: Reco
   richText.push({type: 'text', text: {content: partText}});
 }
 
-function buildPartsRichText(displayNames: string[], partsMap: Record<string, string>): any[] {
+function buildPartsRichText(
+  displayNames: string[],
+  partsMap: Record<string, string>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
+): any[] {
   const richText: any[] = [];
 
   displayNames.forEach((displayName, index) => {
@@ -520,7 +515,7 @@ function buildPartsRichText(displayNames: string[], partsMap: Record<string, str
       richText.push({type: 'text', text: {content: '・'}});
     }
 
-    appendPartWithMention(richText, partText, partsMap);
+    appendPartWithMention(richText, partText, partsMap, partsKeyIndex);
     if (index < displayNames.length - 1) {
       richText.push({type: 'text', text: {content: '\n'}});
     }
@@ -544,12 +539,13 @@ async function createDailyColorPage(
   color: string,
   group: DailyGroup,
   partsMap: Record<string, string>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
 ) {
   return notion.createPage(
     nestedDbId,
     {
       '色': {title: [{text: {content: color}}]},
-      '品番': {rich_text: buildPartsRichText(group.displayNames, partsMap)},
+      '品番': {rich_text: buildPartsRichText(group.displayNames, partsMap, partsKeyIndex)},
       '数量': {rich_text: buildQtyRichText(group.finishQty)},
       'c/t 秒': {number: group.totalCycleTime},
       '詳細': {select: {name: 'ライン'}},
@@ -587,6 +583,7 @@ export async function refreshDailyWorkbookState(filePath: string, pageId: string
     notion.getAllPages(nestedId),
     partsMapPromise,
   ]);
+  const partsKeyIndex = notionUtils.buildPartsKeyIndex(partsMap);
 
   const ws = wb.worksheets[0];
   const headers = getHeaders(ws);
@@ -607,7 +604,7 @@ export async function refreshDailyWorkbookState(filePath: string, pageId: string
 
     for (const entry of group.entries) {
       const matchedLine = parsedLines.find(
-        (line) => !matchedLineIndexes.has(line.idx) && entryMatchesDailyNotionLine(line, entry, partsMap),
+        (line) => !matchedLineIndexes.has(line.idx) && entryMatchesDailyNotionLine(line, entry, partsMap, partsKeyIndex),
       );
 
       if (!matchedLine) {
@@ -652,10 +649,11 @@ export async function runDailyWorkflow(filePath: string, pageId: string) {
 
   const {groups, processedRowNumbers, skippedHighlightedRows, totalRows} = buildDailyGroups(ws, headers);
   const partsMap = await partsMapPromise;
+  const partsKeyIndex = notionUtils.buildPartsKeyIndex(partsMap);
 
   const colorsCreated = Object.keys(groups);
   for (const color of colorsCreated) {
-    await createDailyColorPage(nestedDbId, color, groups[color], partsMap);
+    await createDailyColorPage(nestedDbId, color, groups[color], partsMap, partsKeyIndex);
   }
 
   highlightProcessedRows(ws, processedRowNumbers);

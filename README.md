@@ -26,3 +26,10 @@ View your app in AI Studio: https://ai.studio/apps/e8862ac1-8e47-4d8c-9069-a2789
 - `/embed-app` links are now persistent by default so the same Notion block can keep working across desktop and iOS.
 - If the embed already exists in Notion and was created from a local URL or an older short-lived token, generate a fresh embed link and replace the Notion block. Notion will keep using the old URL until you update it.
 - iPad Notion now receives a lightweight compatibility embed page that avoids the full React bundle, uses the standard file picker, and provides a manual result download.
+
+## CAD Conversion Notes
+
+- STEP/STP files are parsed directly in the browser viewer.
+- SLDPRT, SLDASM, EASM, and EPRT uploads require the Raspberry Pi backend to call the Windows laptop converter through Cloudflare Tunnel.
+- Configure the Pi backend with `MODEL_CONVERTER_COMMAND`, `WINDOWS_CONVERTER_URL`, and `WINDOWS_CONVERTER_TOKEN`; see [tools/windows-cad-converter/README.md](tools/windows-cad-converter/README.md).
+- The Windows laptop must keep `npm run cad:windows-worker` and `cloudflared` running during production hours.

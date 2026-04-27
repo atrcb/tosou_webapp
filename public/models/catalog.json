@@ -1,0 +1,8 @@
+[
+  {
+    "id": "demo-assembly",
+    "name": "Demo Assembly",
+    "modelUrl": "",
+    "description": "Generated fallback product assembly. Add GLB or GLTF files here and list them in this catalog."
+  }
+]

@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import * as logic from './logic.js';
 import * as notion from './notion.js';
+import * as notionUtils from './notionUtils.js';
 import {resolveWorkflowManagerNestedDatabase} from './workflowNotion.js';
 
 const DEFAULT_DEFECTIVE_PARTS_DATABASE_ID = '11132a09e406803e933cebd191e9fb82';
@@ -458,27 +459,7 @@ async function loadWorkflowContextForTracker(pageId?: string): Promise<{
 
 function resolvePartPageId(partNumber: string, partName: string, partsMap: Record<string, string>): string | null {
   const candidates = sortUnique([logic.cleanStr(partNumber), logic.cleanStr(partName)].filter(Boolean));
-
-  for (const candidate of candidates) {
-    if (partsMap[candidate]) {
-      return partsMap[candidate];
-    }
-  }
-
-  let bestKey: string | null = null;
-  let bestLength = -1;
-  for (const candidate of candidates) {
-    for (const key of Object.keys(partsMap)) {
-      if (!candidate.startsWith(key)) {
-        continue;
-      }
-      if (key.length > bestLength) {
-        bestKey = key;
-        bestLength = key.length;
-      }
-    }
-  }
-
+  const bestKey = notionUtils.resolveBestPartKeyFromCandidates(candidates, partsMap);
   return bestKey ? partsMap[bestKey] : null;
 }
 

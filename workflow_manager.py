@@ -51,6 +51,7 @@ from logic import (
     find_nested_databases,
     scan_child_db_cache,
     build_parts_map,
+    build_parts_key_index,
     retrieve_db_ct_is_number,
     read_ct_prop_from_page_props,
     parse_parts_lines,
@@ -62,6 +63,7 @@ from logic import (
     remove_qty_at_index_if_green_italic_with_value,
     rich_text_is_effectively_empty,
     build_ct_prop,
+    resolve_best_part_key,
     notion,
 )
 
@@ -403,6 +405,7 @@ def highlight_and_sync():
     nested_id = warmed.get("nested_db_id") or nested[0]
     ct_is_number = bool(warmed.get("ct_is_number")) if "ct_is_number" in warmed else retrieve_db_ct_is_number(nested_id)
     parts_map_local = warmed.get("parts_map") if isinstance(warmed.get("parts_map"), dict) else build_parts_map()
+    parts_key_index = build_parts_key_index(parts_map_local)
 
     # 1) Preprocess N93・3F黒 rows
     try:
@@ -619,12 +622,7 @@ def highlight_and_sync():
 
             full_text = part
 
-            best_key = None
-            best_len = -1
-            for k in parts_map_local.keys():
-                if full_text.startswith(k) and len(k) > best_len:
-                    best_key = k
-                    best_len = len(k)
+            best_key = resolve_best_part_key(full_text, parts_map_local, parts_key_index)
             part_page_id = parts_map_local.get(best_key) if best_key else parts_map_local.get(part)
 
             if op == "add":
@@ -645,7 +643,7 @@ def highlight_and_sync():
                         line_blocks.append({"type": "text", "text": {"content": trial}})
                         line_blocks.append({"type": "text", "text": {"content": "・"}})
 
-                logic._append_part_with_mention_and_modifier_auto(line_blocks, full_text, parts_map_local)
+                logic._append_part_with_mention_and_modifier_auto(line_blocks, full_text, parts_map_local, parts_key_index)
 
                 if d_str:
                     md = format_date_mm_dd(d_str)

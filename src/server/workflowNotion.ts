@@ -11,21 +11,19 @@ export async function resolveWorkflowManagerNestedDatabase(
   pageId: string,
   targetTitle: string = '作業内容',
 ): Promise<WorkflowNestedDatabaseResolution> {
-  const [nestedDatabaseResult, childDatabases] = await Promise.all([
-    notion.findNestedDatabasesWithSource(pageId, targetTitle),
-    notion.listChildDatabases(pageId, true),
-  ]);
+  const nestedDatabaseResult = await notion.findNestedDatabasesWithSource(pageId, targetTitle);
   const nestedIds = nestedDatabaseResult.ids;
 
   if (nestedIds.length > 0) {
     return {
-      childDatabases,
+      childDatabases: [],
       discoverySource: nestedDatabaseResult.source,
       nestedId: nestedIds[0],
       nestedIds,
     };
   }
 
+  const childDatabases = await notion.listChildDatabases(pageId, true);
   const titles = childDatabases.map((db) => db.title).filter(Boolean);
   const suffix = titles.length
     ? ` Detected child databases: ${titles.join(', ')}`

@@ -1,5 +1,78 @@
 import { normalizePartKey } from './logic.js';
 
+export type PartsKeyIndex = string[];
+
+export function buildPartsKeyIndex(partsMap: Record<string, string>): PartsKeyIndex {
+  return Object.keys(partsMap || {})
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
+
+export function resolveBestPartKey(
+  partText: string,
+  partsMap: Record<string, string>,
+  partsKeyIndex?: PartsKeyIndex,
+): string | null {
+  if (!partText) {
+    return null;
+  }
+
+  if (partsMap[partText]) {
+    return partText;
+  }
+
+  const keys = partsKeyIndex || buildPartsKeyIndex(partsMap);
+  let bestKey: string | null = null;
+  let bestLength = -1;
+
+  for (const key of keys) {
+    if (bestLength >= 0 && key.length < bestLength) {
+      break;
+    }
+
+    if (!partText.startsWith(key)) {
+      continue;
+    }
+
+    if (key.length > bestLength) {
+      bestKey = key;
+      bestLength = key.length;
+    }
+  }
+
+  return bestKey;
+}
+
+export function resolveBestPartKeyFromCandidates(
+  candidates: string[],
+  partsMap: Record<string, string>,
+  partsKeyIndex?: PartsKeyIndex,
+): string | null {
+  for (const candidate of candidates) {
+    if (candidate && partsMap[candidate]) {
+      return candidate;
+    }
+  }
+
+  let bestKey: string | null = null;
+  let bestLength = -1;
+  const keys = partsKeyIndex || buildPartsKeyIndex(partsMap);
+
+  for (const candidate of candidates) {
+    if (!candidate) {
+      continue;
+    }
+
+    const key = resolveBestPartKey(candidate, partsMap, keys);
+    if (key && key.length > bestLength) {
+      bestKey = key;
+      bestLength = key.length;
+    }
+  }
+
+  return bestKey;
+}
+
 export function normalizeQtyStr(q: any): string {
   if (q === null || q === undefined) return '';
   let s = String(q).trim();

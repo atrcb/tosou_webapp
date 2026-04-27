@@ -34,6 +34,7 @@ declare global {
   interface Window {
     __EMBED_MODE__?: boolean;
     __EMBED_SESSION__?: Promise<string>;
+    __EMBED_ACCESS_TOKEN__?: string;
   }
 }
 
@@ -658,6 +659,11 @@ export default function App() {
   const [defectiveTrackerWarning, setDefectiveTrackerWarning] = useState<string | null>(null);
   const [defectiveTrackerToast, setDefectiveTrackerToast] = useState<DefectiveTrackerNotice | null>(null);
   const defectiveTrackerColorSectionRef = useRef<HTMLDivElement>(null);
+  const defectiveTrackerPartSectionRef = useRef<HTMLDivElement>(null);
+  const defectiveTrackerPartNameSectionRef = useRef<HTMLDivElement>(null);
+  const defectiveTrackerQuantitySectionRef = useRef<HTMLDivElement>(null);
+  const defectiveTrackerDefectTypeSectionRef = useRef<HTMLDivElement>(null);
+  const defectiveTrackerActionBarRef = useRef<HTMLDivElement>(null);
   const defectiveTrackerToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hiraharaFiles, setHiraharaFiles] = useState<File[]>([]);
   const [hiraharaCompileSummary, setHiraharaCompileSummary] = useState<HiraharaCompileSummary | null>(null);
@@ -746,13 +752,13 @@ export default function App() {
   const toggleTheme = () => setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
   const handleLanguageChange = (nextLanguage: Language) => setLanguage(nextLanguage);
 
-  const buildWorkbookDownloadUrl = async (serverFile: string, downloadName: string) => {
+  const buildWorkbookDownloadUrl = (serverFile: string, downloadName: string) => {
     const params = new URLSearchParams({file: serverFile});
     if (downloadName) {
       params.set('name', downloadName);
     }
     if (window.__EMBED_MODE__) {
-      const accessToken = await window.__EMBED_SESSION__;
+      const accessToken = window.__EMBED_ACCESS_TOKEN__;
       if (!accessToken) {
         throw new Error('Embed session is unavailable.');
       }
@@ -780,11 +786,14 @@ export default function App() {
   const prepareDownloadArtifact = async (base64: string, filename: string, serverFile?: string | null) => {
     try {
       const safeFilename = filename || 'updated_plan.xlsx';
-      const artifact: DownloadArtifact = base64
-        ? createObjectUrlDownloadArtifact(base64, safeFilename)
-        : serverFile
-          ? {filename: safeFilename, serverFile}
-          : createObjectUrlDownloadArtifact(base64, safeFilename);
+      let artifact: DownloadArtifact;
+      if (serverFile) {
+        artifact = {filename: safeFilename, serverFile, url: buildWorkbookDownloadUrl(serverFile, safeFilename)};
+      } else if (base64) {
+        artifact = createObjectUrlDownloadArtifact(base64, safeFilename);
+      } else {
+        throw new Error('Download content is unavailable.');
+      }
       replaceDownloadArtifact(artifact);
       setHasPendingWorkbookDownload(true);
       addLog(
@@ -800,15 +809,15 @@ export default function App() {
     }
   };
 
-  const handleDownloadWorkbook = async () => {
+  const handleDownloadWorkbook = () => {
     if (!downloadArtifact) {
       return;
     }
 
     try {
       const resolvedArtifact =
-        downloadArtifact.serverFile
-          ? {...downloadArtifact, url: await buildWorkbookDownloadUrl(downloadArtifact.serverFile, downloadArtifact.filename)}
+        downloadArtifact.serverFile && !downloadArtifact.url
+          ? {...downloadArtifact, url: buildWorkbookDownloadUrl(downloadArtifact.serverFile, downloadArtifact.filename)}
           : downloadArtifact;
 
       if (!resolvedArtifact.url) {
@@ -1189,6 +1198,16 @@ export default function App() {
     return parsed;
   };
 
+  const scrollToDefectiveTrackerSection = (targetRef: React.RefObject<HTMLDivElement | null>) => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.setTimeout(() => {
+      targetRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+    }, 80);
+  };
+
   const handleDefectiveTrackerQuantityChange = (value: string) => {
     setDefectiveTrackerQuantity(value);
     setDefectiveTrackerFieldErrors((prev) => {
@@ -1218,6 +1237,7 @@ export default function App() {
     setDefectiveTrackerNotice(null);
     clearDefectiveTrackerFieldError('quantity');
     handleDefectiveTrackerQuantityChange(String(nextValue));
+    scrollToDefectiveTrackerSection(defectiveTrackerDefectTypeSectionRef);
   };
 
   const splitDefectiveTrackerPartDisplay = (value: string) => {
@@ -1354,9 +1374,7 @@ export default function App() {
       defectiveTrackerToastTimerRef.current = setTimeout(() => setDefectiveTrackerToast(null), 3000);
 
       // Scroll back to color section so the next entry can start immediately
-      setTimeout(() => {
-        defectiveTrackerColorSectionRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
-      }, 80);
+      scrollToDefectiveTrackerSection(defectiveTrackerColorSectionRef);
 
       setStatus(text('Defective parts saved', '欠品を登録しました'));
       addLog(
@@ -3421,7 +3439,7 @@ export default function App() {
             )}
 
             {/* Color selection */}
-            <div ref={defectiveTrackerColorSectionRef} className={`${trackerSelectionPanelClass} ${defectiveTrackerFieldErrors.color ? 'border-rose-300 dark:border-rose-500/60' : ''}`}>
+            <div ref={defectiveTrackerColorSectionRef} className={`${trackerSelectionPanelClass} scroll-mt-24 ${defectiveTrackerFieldErrors.color ? 'border-rose-300 dark:border-rose-500/60' : ''}`}>
               <div className="flex items-center justify-between gap-3">
                 <p className={trackerFieldLabelClass}>{tr('Color', '色')}</p>
                 <span className={trackerSelectionStatusClass}>
@@ -3445,6 +3463,7 @@ export default function App() {
                         setDefectiveTrackerNotice(null);
                         clearDefectiveTrackerFieldError('color');
                         clearDefectiveTrackerFieldError('partNumber');
+                        scrollToDefectiveTrackerSection(defectiveTrackerPartSectionRef);
                       }}
                       className={getTrackerChoiceButtonClass(isSelected)}
                     >
@@ -3461,7 +3480,7 @@ export default function App() {
             </div>
 
             {/* Part selection */}
-            <div className={`${trackerSelectionPanelClass} ${defectiveTrackerFieldErrors.partNumber ? 'border-rose-300 dark:border-rose-500/60' : ''}`}>
+            <div ref={defectiveTrackerPartSectionRef} className={`${trackerSelectionPanelClass} scroll-mt-24 ${defectiveTrackerFieldErrors.partNumber ? 'border-rose-300 dark:border-rose-500/60' : ''}`}>
               <div className="flex items-center justify-between gap-3">
                 <p className={trackerFieldLabelClass}>{tr('Part number', '品番')}</p>
                 <span className={trackerSelectionStatusClass}>
@@ -3487,6 +3506,7 @@ export default function App() {
                             setDefectiveTrackerPartNumber(partNumber);
                             setDefectiveTrackerNotice(null);
                             clearDefectiveTrackerFieldError('partNumber');
+                            scrollToDefectiveTrackerSection(defectiveTrackerPartNameSectionRef);
                           }}
                           className={getTrackerPartCardClass(isSelected)}
                         >
@@ -3526,7 +3546,7 @@ export default function App() {
 
             {/* Part name + Quantity */}
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className={getTrackerFieldCardClass('partName')}>
+              <div ref={defectiveTrackerPartNameSectionRef} className={`${getTrackerFieldCardClass('partName')} scroll-mt-24`}>
                 <div className="flex items-center justify-between gap-2">
                   <p className={trackerFieldLabelClass}>{tr('Part name', '部品名')}</p>
                   {defectiveTrackerPartName.trim() && (
@@ -3548,6 +3568,7 @@ export default function App() {
                           setDefectiveTrackerPartName(suggestion);
                           setDefectiveTrackerNotice(null);
                           clearDefectiveTrackerFieldError('partName');
+                          scrollToDefectiveTrackerSection(defectiveTrackerQuantitySectionRef);
                         }}
                         className={
                           isSelected
@@ -3581,7 +3602,7 @@ export default function App() {
                 )}
               </div>
 
-              <div className={getTrackerFieldCardClass('quantity')}>
+              <div ref={defectiveTrackerQuantitySectionRef} className={`${getTrackerFieldCardClass('quantity')} scroll-mt-24`}>
                 <div className="flex items-center justify-between gap-3">
                   <p className={trackerFieldLabelClass}>{tr('Quantity', '数量')}</p>
                   <span className={trackerSelectionStatusClass}>
@@ -3629,7 +3650,7 @@ export default function App() {
             </div>
 
             {/* Defect type */}
-            <div className={getTrackerFieldCardClass('defectType')}>
+            <div ref={defectiveTrackerDefectTypeSectionRef} className={`${getTrackerFieldCardClass('defectType')} scroll-mt-24`}>
               <div className="flex items-center justify-between gap-3">
                 <p className={trackerFieldLabelClass}>{tr('Defect type', '不良類')}</p>
                 <span className={trackerSelectionStatusClass}>
@@ -3653,6 +3674,7 @@ export default function App() {
                           setDefectiveTrackerSelectedType(option);
                           setDefectiveTrackerNotice(null);
                           clearDefectiveTrackerFieldError('defectType');
+                          scrollToDefectiveTrackerSection(defectiveTrackerActionBarRef);
                         }}
                         className={getTrackerCompactChoiceButtonClass(isSelected)}
                       >
@@ -3675,7 +3697,7 @@ export default function App() {
         )}
       </div>
 
-      <div className={actionBarClass}>
+      <div ref={defectiveTrackerActionBarRef} className={`${actionBarClass} scroll-mt-24`}>
         <div className={actionToolbarClass}>
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div className="space-y-3 xl:flex-1">

@@ -57,16 +57,23 @@ function getProductPartVariants(part: string, color: string): string[] {
   return Array.from(new Set(variants.filter(Boolean)));
 }
 
-function resolvePartPageId(partVariants: string[], partsMapLocal: Record<string, string>): string | null {
+function resolvePartPageId(
+  partVariants: string[],
+  partsMapLocal: Record<string, string>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
+): string | null {
+  const keys = partsKeyIndex || notionUtils.buildPartsKeyIndex(partsMapLocal);
   let bestKey: string | null = null;
-  let bestLen = -1;
+  let bestLength = -1;
 
   for (const variant of partVariants) {
-    for (const key of Object.keys(partsMapLocal)) {
-      if (!variant.startsWith(key)) continue;
-      if (key.length > bestLen) {
+    for (const key of keys) {
+      if (bestLength >= 0 && key.length < bestLength) {
+        break;
+      }
+      if (variant.startsWith(key) && key.length > bestLength) {
         bestKey = key;
-        bestLen = key.length;
+        bestLength = key.length;
       }
     }
   }
@@ -78,9 +85,10 @@ function locateProductInPartsRichText(
   partsRt: any[],
   partsMapLocal: Record<string, string>,
   product: Pick<WorkflowProduct, 'part' | 'color' | 'date'>,
+  partsKeyIndex?: notionUtils.PartsKeyIndex,
 ): ProductLineMatch {
   const partVariants = getProductPartVariants(product.part, product.color);
-  const partPageId = resolvePartPageId(partVariants, partsMapLocal);
+  const partPageId = resolvePartPageId(partVariants, partsMapLocal, partsKeyIndex);
   const normalizedDate = logic.cleanStr(product.date);
 
   for (const variant of partVariants) {
@@ -149,6 +157,7 @@ async function annotateProductsWithNotionState(products: WorkflowProduct[], page
     notion.getAllPages(nestedId),
     partsMapPromise,
   ]);
+  const partsKeyIndex = notionUtils.buildPartsKeyIndex(partsMapLocal);
   const existingByColor = buildExistingColorPageIndex(existingPages);
 
   return baseProducts.map((product) => {
@@ -159,7 +168,7 @@ async function annotateProductsWithNotionState(products: WorkflowProduct[], page
     }
 
     const partsRt = page.properties?.['品番']?.rich_text || [];
-    const { targetIndex } = locateProductInPartsRichText(partsRt, partsMapLocal, product);
+    const { targetIndex } = locateProductInPartsRichText(partsRt, partsMapLocal, product, partsKeyIndex);
 
     return {
       ...product,
@@ -395,6 +404,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     notion.getAllPages(nestedId),
     partsMapPromise,
   ]);
+  const partsKeyIndex = notionUtils.buildPartsKeyIndex(partsMapLocal);
   const existingByColor = buildExistingColorPageIndex(existingPages);
   let mutatedNestedDb = false;
   const rowsToHighlightAfterSync: ExcelRowRecord[] = [];
@@ -428,14 +438,7 @@ export async function highlightAndSync(filePath: string, pageId: string, product
     for (const act of acts) {
       const fullText = act.part;
       
-      let bestKey: string | null = null;
-      let bestLen = -1;
-      for (const k in partsMapLocal) {
-        if (fullText.startsWith(k) && k.length > bestLen) {
-          bestKey = k;
-          bestLen = k.length;
-        }
-      }
+      const bestKey = notionUtils.resolveBestPartKey(fullText, partsMapLocal, partsKeyIndex);
       const partPageId = bestKey ? partsMapLocal[bestKey] : partsMapLocal[act.part];
       
       if (act.op === 'add') {
@@ -546,7 +549,8 @@ export async function removeProductFromNotion(pageId: string, product: WorkflowP
   let qtyRt = props['数量']?.rich_text || [];
   let currentCt = Number(props['c/t 秒']?.number || 0);
   const partsMapLocal = await partsMapPromise;
-  const { targetIndex } = locateProductInPartsRichText(partsRt, partsMapLocal, product);
+  const partsKeyIndex = notionUtils.buildPartsKeyIndex(partsMapLocal);
+  const { targetIndex } = locateProductInPartsRichText(partsRt, partsMapLocal, product, partsKeyIndex);
 
   if (targetIndex === null) {
     return { removed: false };

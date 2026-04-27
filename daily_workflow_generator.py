@@ -21,6 +21,7 @@ Depends on:
 from __future__ import annotations
 
 import os
+from collections import defaultdict
 from typing import Optional, Dict, List
 from datetime import date, datetime
 
@@ -283,6 +284,7 @@ def run_daily_auto_for_page(selected_page: dict, target_date: date):
     # 5) Group rows by color / parts using existing logic
     groups = group_data_daily(df_to_group)
     parts_map = warmed.get("parts_map") if isinstance(warmed.get("parts_map"), dict) else build_parts_map()
+    parts_key_index = logic.build_parts_key_index(parts_map)
 
     # 6) Find nested『作業内容』DB inside the selected calendar page
     nested = warmed["nested_db_ids"] if "nested_db_ids" in warmed else find_nested_databases(selected_page["id"], "作業内容")
@@ -305,6 +307,24 @@ def run_daily_auto_for_page(selected_page: dict, target_date: date):
             part_color_usage.setdefault(p, set()).add(c)
 
     # Now inside the loop, use new_display_names logic
+    rows_by_color = defaultdict(list)
+    idx2 = -1
+    for row in ws.iter_rows(min_row=2):
+        idx2 += 1
+        if idx2 in highlighted_row_idxs:
+            continue
+        raw_color = ""
+        if row[color_idx].value:
+            raw_color = str(row[color_idx].value).strip()
+        full_name = ""
+        if full_idx is not None and row[full_idx].value:
+            full_name = str(row[full_idx].value).strip()
+
+        for excel_color in split_excel_color(raw_color, full_name):
+            color_key = logic.normalize_color_key(excel_color)
+            if color_key:
+                rows_by_color[color_key].append(row)
+
     for color, info in groups.items():
         step += 1
         set_progress(int(step / total * 100))
@@ -327,6 +347,7 @@ def run_daily_auto_for_page(selected_page: dict, target_date: date):
                 finish_qty=info["数量"],
                 total_cycle_time=info["作業時間(秒)"],
                 parts_map=parts_map,
+                parts_key_index=parts_key_index,
             )
         except Exception as e:
             log(f"[Daily] Notion write failed for color={color}: {type(e).__name__}: {e}")
@@ -342,22 +363,9 @@ def run_daily_auto_for_page(selected_page: dict, target_date: date):
             return
         
         # 8) Highlight only the rows we just processed (i.e. NOT already highlighted)
-        idx2 = -1
-        for row in ws.iter_rows(min_row=2):
-            idx2 += 1
-            if idx2 in highlighted_row_idxs:
-                continue  # skip pre-highlighted rows
-            raw_color = ""
-            if row[color_idx].value:
-                raw_color = str(row[color_idx].value).strip()
-            full_name = ""
-            if full_idx is not None and row[full_idx].value:
-                full_name = str(row[full_idx].value).strip()
-
-            excel_colors = split_excel_color(raw_color, full_name)
-            if color in excel_colors:
-                for cell2 in row[:10]:
-                    cell2.fill = yellow
+        for row in rows_by_color.get(color, []):
+            for cell2 in row[:10]:
+                cell2.fill = yellow
 
     # 9) Save Excel (safe temp → replace)
     temp_path = filepath.replace(".xlsx", "_temp.xlsx")
